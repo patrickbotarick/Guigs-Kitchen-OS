@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+apps/api/prisma/*.db
+apps/api/prisma/*.db-*
+*.tsbuildinfo
+coverage/
+.vite/

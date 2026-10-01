@@ -1,0 +1,8 @@
+{
+  "name": "Guig's Kitchen",
+  "short_name": "Guig's",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141a1a",
+  "theme_color": "#141a1a"
+}

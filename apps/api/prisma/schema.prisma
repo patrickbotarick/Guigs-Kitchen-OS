@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+}
+
+enum OrderStatus {
+  WAITING_PRODUCTION
+  IN_PRODUCTION
+  OVEN
+  FINISHING
+  WAITING_DISPATCH
+  WAITING_DRIVER
+  OUT_FOR_DELIVERY
+  DELIVERED
+  READY_FOR_PICKUP
+  PICKED_UP
+  CANCELLED
+}
+
+enum ItemStatus {
+  WAITING
+  IN_PRODUCTION
+  OVEN
+  FINISHED
+  CANCELLED
+}
+
+enum ModifierKind {
+  REMOVED
+  ADDED
+  CRUST
+}
+
+model OrderCounter {
+  id    Int @id
+  value Int
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  number        Int         @unique
+  customerName  String
+  customerPhone String?
+  type          OrderType
+  status        OrderStatus @default(WAITING_PRODUCTION)
+  notes         String?
+  receivedAt    DateTime    @default(now())
+  productionQueueAt DateTime @default(now())
+  assignedAt    DateTime?
+  productionStartedAt DateTime?
+  ovenStartedAt DateTime?
+  ovenExpectedEndAt DateTime?
+  ovenFinishedAt DateTime?
+  packingFinishedAt DateTime?
+  waitingDriverAt DateTime?
+  dispatchedAt  DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         OrderItem[]
+
+  @@index([status, receivedAt])
+}
+
+model OrderItem {
+  id           String     @id @default(cuid())
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name         String
+  size         String
+  ingredients  String?
+  status       ItemStatus @default(WAITING)
+  notes        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  ovenStartedAt DateTime?
+  ovenExpectedEndAt DateTime?
+  ovenFinishedAt DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  modifiers    OrderItemModifier[]
+
+  @@index([orderId])
+}
+
+model OrderItemModifier {
+  id       String       @id @default(cuid())
+  itemId   String
+  item     OrderItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  kind     ModifierKind
+  name     String
+  createdAt DateTime    @default(now())
+
+  @@index([itemId])
+}
+
+model Worker {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CatalogFlavor {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+model CatalogSize {
+  id   String @id @default(cuid())
+  name String @unique
+}
