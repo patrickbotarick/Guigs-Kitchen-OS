@@ -6,3 +6,4 @@ apps/api/prisma/*.db-*
 *.tsbuildinfo
 coverage/
 .vite/
+.setup-state.json

@@ -26,6 +26,7 @@ export function useKitchen() {
     socket.on('connect', () => { setRealtime(true); void refresh(); });
     socket.on('disconnect', () => setRealtime(false));
     socket.on('order.created', () => { void refresh(); });
+    socket.on('order.updated', () => { void refresh(); });
     void refresh();
     const interval = window.setInterval(async () => {
       if (await checkHealth()) void refresh();

@@ -57,6 +57,7 @@ model Order {
   productionQueueAt DateTime @default(now())
   assignedAt    DateTime?
   productionStartedAt DateTime?
+  productionFinishedAt DateTime?
   ovenStartedAt DateTime?
   ovenExpectedEndAt DateTime?
   ovenFinishedAt DateTime?
@@ -67,8 +68,31 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
+  statusHistory OrderStatusHistory[]
 
   @@index([status, receivedAt])
+}
+
+enum ActorType {
+  SYSTEM
+  OPERATOR
+  WORKER
+  ADMIN
+  INTEGRATION
+}
+
+model OrderStatusHistory {
+  id         String      @id @default(cuid())
+  orderId    String
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  changedAt  DateTime    @default(now())
+  actorType  ActorType
+  actorId    String?
+  metadata   String?
+
+  @@index([orderId, changedAt])
 }
 
 model OrderItem {

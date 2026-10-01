@@ -3,6 +3,6 @@
   "short_name": "Guig's",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#141a1a",
-  "theme_color": "#141a1a"
+  "background_color": "#f6f5f2",
+  "theme_color": "#19191c"
 }

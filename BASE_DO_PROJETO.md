@@ -1510,3 +1510,19 @@ Ao final, responda com um resumo objetivo contendo:
 - próximo passo recomendado.
 
 Não implemente o próximo passo sem solicitação.
+
+---
+
+# 29. Decisões da Fase 2A — identidade e histórico
+
+## Identidade visual
+
+Guig's Kitchen pertence ao mesmo ecossistema do Guig's Stock. Ambos devem compartilhar linguagem visual, paleta e padrões de interface. A logo oficial da Pizzaria Guig's é o principal asset de marca. Nesta etapa foi usado `Logo_Guigs.png`, idêntico ao asset presente no Guig's Stock, copiado para `apps/web/public/logo-guigs.png` sem redesenho. A interface usa como referência a base escura, a superfície clara e o vermelho do Guig's Stock; os valores foram centralizados em tokens CSS para futura evolução conjunta.
+
+## Desenvolvimento
+
+- Fase 1 — concluída e validada.
+- Fase 2A — máquina de estados do pedido, histórico persistente, atualização realtime e ajustes de fundação.
+- Fase 2B — central Kanban completa; ainda não iniciada.
+
+Na Fase 2A, somente as transições `WAITING_PRODUCTION → IN_PRODUCTION → OVEN → FINISHING → WAITING_DISPATCH` são habilitadas. O backend exige `expectedStatus`, valida a próxima etapa e grava status, timestamps e histórico na mesma transação. A criação do pedido registra o evento inicial `SYSTEM`; ações temporárias da cozinha registram `OPERATOR`. O histórico dos pedidos existentes foi preenchido pela migration. As etapas por pizza, atribuição de montador, cronômetro do forno e fluxo de entrega permanecem para fases posteriores.

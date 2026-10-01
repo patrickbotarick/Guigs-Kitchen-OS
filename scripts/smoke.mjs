@@ -36,7 +36,26 @@ try {
   const list = await (await fetch(`${api}/orders`)).json();
   if (detail.items.length !== 2 || detail.items[0].modifiers[0].name !== 'Cebola') throw new Error('Itens/modificadores não persistidos');
   if (!list.some(item => item.id === order.id)) throw new Error('Pedido ausente da fila');
-  console.info(`Smoke passou: pedido #${order.number} (${order.id}), HTTP + SQLite + evento Socket.IO.`);
+  const updatedReceived = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Evento order.updated não recebido')), 5000);
+    socket.once('order.updated', value => { clearTimeout(timer); resolve(value); });
+  });
+  const transition = await fetch(`${api}/orders/${order.id}/transition`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedStatus: 'WAITING_PRODUCTION', toStatus: 'IN_PRODUCTION' }),
+  });
+  if (transition.status !== 200) throw new Error(`Transição válida retornou ${transition.status}`);
+  const changed = await transition.json();
+  const updatedEvent = await updatedReceived;
+  if (changed.status !== 'IN_PRODUCTION' || updatedEvent.id !== order.id) throw new Error('Transição ou evento incorreto');
+  const invalidTransition = await fetch(`${api}/orders/${order.id}/transition`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedStatus: 'IN_PRODUCTION', toStatus: 'DELIVERED' }),
+  });
+  if (invalidTransition.status !== 409) throw new Error('Transição inválida não rejeitada');
+  const history = await (await fetch(`${api}/orders/${order.id}/history`)).json();
+  if (history.length !== 2 || history[1].toStatus !== 'IN_PRODUCTION') throw new Error('Histórico incorreto');
+  console.info(`Smoke passou: pedido #${order.number} (${order.id}), HTTP + SQLite + histórico + eventos Socket.IO.`);
 } finally {
   socket.disconnect();
 }

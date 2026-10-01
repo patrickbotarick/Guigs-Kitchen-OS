@@ -22,7 +22,7 @@ const allowedOrigin = (origin: string | undefined, callback: (error: Error | nul
 };
 const prisma = new PrismaClient();
 const orders = new OrderService(prisma);
-const app = createApp(orders, order => io.emit('order.created', order), allowedOrigin);
+const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin);
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: allowedOrigin } });
 
