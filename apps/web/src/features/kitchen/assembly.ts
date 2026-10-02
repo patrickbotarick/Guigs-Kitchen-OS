@@ -1,0 +1,79 @@
+import { createDemoOrders, createMockOrder } from './mockOrders';
+import type { AssemblyHandoff, AssemblyOrder, AssemblyOrderStatus, PizzaAction, PizzaItem, QueueSortDirection, SimulatedOrderInput } from './types';
+
+export const pizzasOf = (order: AssemblyOrder): PizzaItem[] => order.items.filter((item): item is PizzaItem => item.kind === 'PIZZA');
+export function sortOrders(orders: AssemblyOrder[], direction: QueueSortDirection): AssemblyOrder[] {
+  return [...orders].sort((a, b) => (Date.parse(a.receivedAt) - Date.parse(b.receivedAt) || a.number - b.number) * (direction === 'ASC' ? 1 : -1));
+}
+export const completedPizzas = (order: AssemblyOrder) => pizzasOf(order).filter(pizza => pizza.status === 'OVEN').length;
+export const canCompleteOrder = (order: AssemblyOrder) => pizzasOf(order).length > 0 && pizzasOf(order).every(pizza => pizza.status === 'OVEN');
+export function orderStage(order: AssemblyOrder): AssemblyOrderStatus {
+  if (canCompleteOrder(order)) return 'OVEN';
+  return pizzasOf(order).some(pizza => pizza.status !== 'WAITING') ? 'IN_PRODUCTION' : 'WAITING_PRODUCTION';
+}
+export function transitionPizza(pizza: PizzaItem, action: PizzaAction): PizzaItem {
+  if (action === 'START' && pizza.status === 'WAITING') return { ...pizza, status: 'IN_PRODUCTION', paused: false };
+  if (action === 'PAUSE' && pizza.status === 'IN_PRODUCTION' && !pizza.paused) return { ...pizza, paused: true };
+  if (action === 'RESUME' && pizza.status === 'IN_PRODUCTION' && pizza.paused) return { ...pizza, paused: false };
+  if (action === 'SEND_TO_OVEN' && pizza.status === 'IN_PRODUCTION' && !pizza.paused) return { ...pizza, status: 'OVEN' };
+  return pizza;
+}
+
+export interface AssemblyState {
+  orders: AssemblyOrder[];
+  selectedOrderId: string | null;
+  selectedPizzaIds: Record<string, string>;
+  handoffs: AssemblyHandoff[];
+  nextNumber: number;
+  notice: string;
+  sortDirection: QueueSortDirection;
+}
+export type AssemblyAction =
+  | { type: 'TOGGLE_SORT' }
+  | { type: 'SELECT_ORDER'; orderId: string }
+  | { type: 'SELECT_PIZZA'; orderId: string; pizzaId: string }
+  | { type: 'PIZZA_ACTION'; orderId: string; pizzaId: string; action: PizzaAction }
+  | { type: 'COMPLETE_ORDER'; orderId: string; occurredAt: string }
+  | { type: 'ARRIVE'; input: SimulatedOrderInput; receivedAt: string };
+
+export function createAssemblyState(now: number): AssemblyState {
+  const orders = createDemoOrders(now);
+  return { orders, selectedOrderId: orders[0]?.id ?? null, selectedPizzaIds: {}, handoffs: [], nextNumber: 1006, notice: '', sortDirection: 'ASC' };
+}
+
+// Pure domain transitions; a future API adapter can replace dispatch without moving rules into cards.
+export function assemblyReducer(state: AssemblyState, action: AssemblyAction): AssemblyState {
+  switch (action.type) {
+    case 'TOGGLE_SORT':
+      return { ...state, sortDirection: state.sortDirection === 'ASC' ? 'DESC' : 'ASC' };
+    case 'SELECT_ORDER':
+      return state.orders.some(order => order.id === action.orderId) ? { ...state, selectedOrderId: action.orderId } : state;
+    case 'SELECT_PIZZA': {
+      const order = state.orders.find(order => order.id === action.orderId);
+      return order && pizzasOf(order).some(pizza => pizza.id === action.pizzaId)
+        ? { ...state, selectedPizzaIds: { ...state.selectedPizzaIds, [order.id]: action.pizzaId } } : state;
+    }
+    case 'PIZZA_ACTION':
+      return { ...state, orders: state.orders.map(order => order.id === action.orderId ? {
+        ...order, items: order.items.map(item => item.kind === 'PIZZA' && item.id === action.pizzaId ? transitionPizza(item, action.action) : item),
+      } : order) };
+    case 'COMPLETE_ORDER': {
+      const order = state.orders.find(order => order.id === action.orderId);
+      if (!order || !canCompleteOrder(order)) return state;
+      const orders = state.orders.filter(item => item.id !== order.id);
+      const selectedPizzaIds = { ...state.selectedPizzaIds };
+      delete selectedPizzaIds[order.id];
+      return {
+        ...state, orders, selectedPizzaIds,
+        selectedOrderId: state.selectedOrderId === order.id ? sortOrders(orders, state.sortDirection)[0]?.id ?? null : state.selectedOrderId,
+        handoffs: [...state.handoffs, { type: 'assembly.completed', order, occurredAt: action.occurredAt, orderStatus: 'OVEN', destination: 'FINISHING' }],
+        notice: `Pedido #${order.number}: montagem concluída. Pizzas no forno.`,
+      };
+    }
+    case 'ARRIVE': {
+      const order = createMockOrder(state.nextNumber, action.input, action.receivedAt);
+      return { ...state, orders: [...state.orders, order], nextNumber: state.nextNumber + 1,
+        selectedOrderId: state.selectedOrderId ?? order.id, notice: `Pedido #${order.number} chegou à fila.` };
+    }
+  }
+}

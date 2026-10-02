@@ -18,6 +18,8 @@
     "test": "npm run test -w @guigs/api",
     "smoke": "node scripts/smoke.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
+    "test:assembly": "vitest run apps/web/src/features/kitchen/assembly.test.ts",
+    "test:assembly:browser": "node scripts/assembly-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web"
   },
   "devDependencies": {

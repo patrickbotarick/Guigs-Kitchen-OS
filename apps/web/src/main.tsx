@@ -5,20 +5,33 @@ import { Dashboard } from './pages/Dashboard';
 import { NewOrder } from './pages/NewOrder';
 import { Kitchen } from './pages/Kitchen';
 import { BrandLogo } from './components/BrandLogo';
+import { AssemblyLayout } from './features/kitchen/useAssembly';
+import { KitchenAssemblyPage } from './features/kitchen/pages/KitchenAssemblyPage';
+import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorPage';
 import './style.css';
 
 function App() {
   const location = useLocation();
+  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/');
   return <div className="app-shell">
-    <header className="topbar">
+    {!assembly && <header className="topbar">
       <Link className="brand" to="/" aria-label="Guig's Kitchen, voltar ao painel"><BrandLogo /></Link>
       <nav aria-label="Navegação principal">
         <Link className={location.pathname === '/' ? 'active' : ''} to="/">Painel</Link>
         <Link className={location.pathname === '/orders/new' ? 'active' : ''} to="/orders/new">Novo pedido</Link>
         <Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Cozinha</Link>
+        <Link to="/kitchen/assembly">Montagem</Link>
       </nav>
-    </header>
-    <main><Routes><Route path="/" element={<Dashboard />} /><Route path="/orders/new" element={<NewOrder />} /><Route path="/kitchen" element={<Kitchen />} /></Routes></main>
+    </header>}
+    <main><Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/orders/new" element={<NewOrder />} />
+      <Route path="/kitchen" element={<Kitchen />} />
+      <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
+        <Route index element={<KitchenAssemblyPage />} />
+        {import.meta.env.DEV && <Route path="dev" element={<KitchenSimulatorPage />} />}
+      </Route>
+    </Routes></main>
   </div>;
 }
 
