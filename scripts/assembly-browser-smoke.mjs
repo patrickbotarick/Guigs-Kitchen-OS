@@ -23,7 +23,7 @@ try {
   await page.getByRole('heading', { name: 'Pedido #1001', exact: true }).waitFor();
   assert.equal(await page.locator('.ka-queue-card').count(), 5);
   assert.equal(await page.locator('.ka-pizza-card').count(), 3, 'Sem slots vazios');
-  assert.equal(await page.getByRole('button', { name: 'Concluir pedido', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Concluir montagem', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: /Enviar pro forno/ }).isDisabled(), true);
   assert.match(await page.locator('.ka-detail').innerText(), /Removido:\s+cebola/);
   assert.match(await page.locator('.ka-detail').innerText(), /Adicional:\s+bacon/);
@@ -46,12 +46,23 @@ try {
       width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
       clipped: [...document.querySelectorAll('.ka-screen button, .ka-order-header, .ka-pizzas-heading, .ka-detail-meta')]
         .filter(element => element.scrollWidth > element.clientWidth + 1).map(element => element.className),
+      brokenFlavorWords: [...document.querySelectorAll('.ka-pizza-card-top > strong')].flatMap(element => {
+        const node = element.firstChild;
+        if (!node || node.nodeType !== Node.TEXT_NODE) return [];
+        return [...node.textContent.matchAll(/\S+/g)].filter(match => {
+          const range = document.createRange();
+          range.setStart(node, match.index);
+          range.setEnd(node, match.index + match[0].length);
+          return range.getClientRects().length > 1;
+        }).map(match => match[0]);
+      }),
     }));
     assert.ok(geometry.width <= width, `Overflow horizontal em ${width}: ${geometry.width}`);
     assert.ok(geometry.height <= height, `Overflow vertical externo em ${height}: ${geometry.height}`);
     assert.deepEqual(geometry.clipped, [], `Conteúdo cortado em ${width}`);
+    assert.deepEqual(geometry.brokenFlavorWords, [], `Nome de sabor quebrado dentro da palavra em ${width}`);
     const footer = await page.locator('.ka-order-footer').boundingBox();
-    const actions = await page.locator('.ka-pizza-actions, .ka-pizza-done').boundingBox();
+    const actions = await page.locator('.ka-pizza-actions, .ka-assembly-complete').boundingBox();
     assert.ok(footer.y + footer.height <= height && actions.y + actions.height <= height, 'Ações fora da tela');
     await page.screenshot({ path: join(screenshots, `${label}-${width}x${height}.png`), fullPage: true });
   }
@@ -78,18 +89,20 @@ try {
   assert.match(await page.locator('.ka-detail').innerText(), /Portuguesa/);
   await page.getByRole('button', { name: 'Retomar', exact: true }).click();
   await page.getByRole('button', { name: /Enviar pro forno/ }).click();
-  await page.getByText('Pizzas concluídas (1 / 3)', { exact: true }).waitFor();
+  await page.getByText('Montagens concluídas (1 / 3)', { exact: true }).waitFor();
   assert.equal(await page.locator('.ka-timeline [aria-current="step"]').innerText(), 'Montagem');
-  assert.equal(await page.getByRole('button', { name: 'Concluir pedido', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Concluir montagem', exact: true }).isDisabled(), true);
   await checkLayout(1024, 768, 'mixed');
   for (const name of ['Pizza 1, Calabresa, Aguardando', 'Pizza 3, Mussarela, Aguardando']) {
     await page.getByRole('button', { name, exact: true }).click();
     await page.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
     await page.getByRole('button', { name: /Enviar pro forno/ }).click();
   }
-  await page.getByText('Pizzas concluídas (3 / 3)', { exact: true }).waitFor();
-  assert.equal(await page.locator('.ka-timeline [aria-current="step"]').innerText(), 'Forno');
-  await page.getByRole('button', { name: 'Concluir pedido', exact: true }).click();
+  await page.getByText('Montagens concluídas (3 / 3)', { exact: true }).waitFor();
+  assert.equal(await page.locator('.ka-timeline [aria-current="step"]').innerText(), 'Fila do forno');
+  assert.equal(await page.locator('.ka-pizza-status').getByText('Aguardando forno', { exact: true }).count(), 3);
+  await checkLayout(1024, 768, 'assembly-complete');
+  await page.getByRole('button', { name: 'Concluir montagem', exact: true }).click();
   await page.getByRole('heading', { name: 'Pedido #1002', exact: true }).waitFor();
   assert.equal(await page.locator('.ka-queue-card').count(), 4);
   assert.equal(await page.getByRole('button', { name: 'Pedido #1001, Mariana Costa', exact: true }).count(), 0);
@@ -137,6 +150,17 @@ try {
   await page.getByRole('button', { name: 'Pizza 3, Mussarela, Aguardando', exact: true }).click();
   assert.match(await page.locator('.ka-detail').innerText(), /Broto \(4 fatias\)/);
   assert.equal(await page.locator('.ka-half-selector').count(), 0);
+  // Repeated switches must reset the displayed half and retain the correct recipe/notes.
+  for (let index = 0; index < 5; index++) {
+    await page.getByRole('button', { name: 'Pizza 2, Calabresa / Portuguesa, Aguardando', exact: true }).click();
+    await page.getByRole('button', { name: '2ª metade — Portuguesa', exact: true }).click();
+    await page.getByRole('button', { name: 'Pedido #1002, Rafael Lima', exact: true }).click();
+    await page.getByRole('button', { name: 'Pedido #1006, Pedido com seis pizzas', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: '1ª metade — Calabresa', exact: true }).getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: 'Pizza 1, Calabresa, Aguardando', exact: true }).click();
+    assert.match(await page.locator('.ka-observations').innerText(), /Bem assada/);
+    assert.match(await page.locator('.ka-ingredients').innerText(), /Removido:\s+cebola/);
+  }
   await checkLayout(1280, 800, 'six-pizzas');
 
   await page.getByRole('link', { name: 'Abrir simulador de desenvolvimento' }).click();
@@ -160,9 +184,18 @@ try {
   await page.getByRole('button', { name: 'Pizza 30, Calabresa, Aguardando', exact: true }).click();
   await page.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
   await page.getByRole('button', { name: /Enviar pro forno/ }).click();
-  await page.getByText('Pizzas concluídas (1 / 30)', { exact: true }).waitFor();
+  await page.getByText('Montagens concluídas (1 / 30)', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Pedido #1017, Chegada 10', exact: true }).click();
   await page.getByRole('heading', { name: 'Pedido #1017', exact: true }).waitFor();
+  assert.equal(await page.locator('.ka-pizza-card').count(), 1);
+  await page.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
+  await page.getByRole('button', { name: 'Pausar', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: /Enviar pro forno/ }).isDisabled(), true);
+  await page.getByRole('button', { name: 'Retomar', exact: true }).click();
+  await page.getByRole('button', { name: /Enviar pro forno/ }).click();
+  assert.equal(await page.getByRole('button', { name: 'Concluir montagem', exact: true }).isEnabled(), true);
+  await page.getByRole('button', { name: 'Concluir montagem', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Pedido #1017, Chegada 10', exact: true }).count(), 0);
 
   // Reload intentionally resets only the mock session. Drain the initial queue to verify its empty state.
   await page.reload();
@@ -175,7 +208,7 @@ try {
       await page.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
       await page.getByRole('button', { name: /Enviar pro forno/ }).click();
     }
-    await page.getByRole('button', { name: 'Concluir pedido', exact: true }).click();
+    await page.getByRole('button', { name: 'Concluir montagem', exact: true }).click();
   }
   await page.getByRole('heading', { name: 'Fila de montagem em dia', exact: true }).waitFor();
   assert.equal(await page.locator('.ka-queue-card').count(), 0);

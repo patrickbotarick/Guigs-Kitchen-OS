@@ -38,7 +38,7 @@ export function KitchenSimulatorPage() {
       <div className="actions"><button className="button primary" type="submit">Simular chegada de novo pedido</button><button className="button secondary" type="button" onClick={() => navigate('/kitchen/assembly')}>Voltar à fila ({state.orders.length})</button></div>
       <p role="status">{state.notice}</p>
     </form>
-    <section className="form-section"><h2>Montagens concluídas ({state.handoffs.length})</h2><p>Registro local da transferência. As pizzas ainda precisam passar pelo forno e pela finalização.</p>{state.handoffs.length ? <ul>{state.handoffs.map(event => <li key={event.order.id}>Pedido #{event.order.number} · {event.order.customerName} · Forno → Finalização</li>)}</ul> : <p>Nenhum pedido transferido.</p>}</section>
+    <section className="form-section"><h2>Montagens concluídas ({state.handoffs.length})</h2><p>Registro local da transferência. As pizzas ainda precisam passar pelo forno e pela finalização.</p>{state.handoffs.length ? <ul>{state.handoffs.map(event => <li key={event.order.id}>Pedido #{event.order.number} · {event.order.customerName} · Montagem → Fila do forno</li>)}</ul> : <p>Nenhum pedido transferido.</p>}</section>
     <details className="form-section ka-catalog-review"><summary>Catálogo oficial · pontos para revisão</summary><ul>{catalogReviews.map(review => <li key={review.id}><code>{review.status}</code>: {review.detail}</li>)}</ul></details>
   </div>;
 }

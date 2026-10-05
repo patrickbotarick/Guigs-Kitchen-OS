@@ -13,7 +13,7 @@ export function createMockOrder(number: number, input: SimulatedOrderInput, rece
     validatePizzaDraft(draft);
     return {
       ...structuredClone(draft), id: `${id}-pizza-${index + 1}`, kind: 'PIZZA',
-      status: 'WAITING', paused: false,
+      status: 'WAITING_ASSEMBLY', paused: false,
     };
   });
   return {

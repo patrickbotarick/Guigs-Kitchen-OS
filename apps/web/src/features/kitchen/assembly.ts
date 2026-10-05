@@ -5,17 +5,19 @@ export const pizzasOf = (order: AssemblyOrder): PizzaItem[] => order.items.filte
 export function sortOrders(orders: AssemblyOrder[], direction: QueueSortDirection): AssemblyOrder[] {
   return [...orders].sort((a, b) => (Date.parse(a.receivedAt) - Date.parse(b.receivedAt) || a.number - b.number) * (direction === 'ASC' ? 1 : -1));
 }
-export const completedPizzas = (order: AssemblyOrder) => pizzasOf(order).filter(pizza => pizza.status === 'OVEN').length;
-export const canCompleteOrder = (order: AssemblyOrder) => pizzasOf(order).length > 0 && pizzasOf(order).every(pizza => pizza.status === 'OVEN');
+// Counts only the end of assembly, never baked or fully finished pizzas.
+export const assemblyCompletedPizzas = (order: AssemblyOrder) => pizzasOf(order).filter(pizza => pizza.status === 'WAITING_OVEN').length;
+export const canCompleteAssembly = (order: AssemblyOrder) => pizzasOf(order).length > 0 && pizzasOf(order).every(pizza => pizza.status === 'WAITING_OVEN');
 export function orderStage(order: AssemblyOrder): AssemblyOrderStatus {
-  if (canCompleteOrder(order)) return 'OVEN';
-  return pizzasOf(order).some(pizza => pizza.status !== 'WAITING') ? 'IN_PRODUCTION' : 'WAITING_PRODUCTION';
+  // OVEN is the aggregate oven queue here; this module cannot confirm baking.
+  if (canCompleteAssembly(order)) return 'OVEN';
+  return pizzasOf(order).some(pizza => pizza.status !== 'WAITING_ASSEMBLY') ? 'IN_PRODUCTION' : 'WAITING_PRODUCTION';
 }
 export function transitionPizza(pizza: PizzaItem, action: PizzaAction): PizzaItem {
-  if (action === 'START' && pizza.status === 'WAITING') return { ...pizza, status: 'IN_PRODUCTION', paused: false };
-  if (action === 'PAUSE' && pizza.status === 'IN_PRODUCTION' && !pizza.paused) return { ...pizza, paused: true };
-  if (action === 'RESUME' && pizza.status === 'IN_PRODUCTION' && pizza.paused) return { ...pizza, paused: false };
-  if (action === 'SEND_TO_OVEN' && pizza.status === 'IN_PRODUCTION' && !pizza.paused) return { ...pizza, status: 'OVEN' };
+  if (action === 'START' && pizza.status === 'WAITING_ASSEMBLY') return { ...pizza, status: 'ASSEMBLING', paused: false };
+  if (action === 'PAUSE' && pizza.status === 'ASSEMBLING' && !pizza.paused) return { ...pizza, paused: true };
+  if (action === 'RESUME' && pizza.status === 'ASSEMBLING' && pizza.paused) return { ...pizza, paused: false };
+  if (action === 'SEND_TO_OVEN' && pizza.status === 'ASSEMBLING' && !pizza.paused) return { ...pizza, status: 'WAITING_OVEN' };
   return pizza;
 }
 
@@ -33,7 +35,7 @@ export type AssemblyAction =
   | { type: 'SELECT_ORDER'; orderId: string }
   | { type: 'SELECT_PIZZA'; orderId: string; pizzaId: string }
   | { type: 'PIZZA_ACTION'; orderId: string; pizzaId: string; action: PizzaAction }
-  | { type: 'COMPLETE_ORDER'; orderId: string; occurredAt: string }
+  | { type: 'COMPLETE_ASSEMBLY'; orderId: string; occurredAt: string }
   | { type: 'ARRIVE'; input: SimulatedOrderInput; receivedAt: string };
 
 export function createAssemblyState(now: number): AssemblyState {
@@ -57,17 +59,17 @@ export function assemblyReducer(state: AssemblyState, action: AssemblyAction): A
       return { ...state, orders: state.orders.map(order => order.id === action.orderId ? {
         ...order, items: order.items.map(item => item.kind === 'PIZZA' && item.id === action.pizzaId ? transitionPizza(item, action.action) : item),
       } : order) };
-    case 'COMPLETE_ORDER': {
+    case 'COMPLETE_ASSEMBLY': {
       const order = state.orders.find(order => order.id === action.orderId);
-      if (!order || !canCompleteOrder(order)) return state;
+      if (!order || !canCompleteAssembly(order)) return state;
       const orders = state.orders.filter(item => item.id !== order.id);
       const selectedPizzaIds = { ...state.selectedPizzaIds };
       delete selectedPizzaIds[order.id];
       return {
         ...state, orders, selectedPizzaIds,
         selectedOrderId: state.selectedOrderId === order.id ? sortOrders(orders, state.sortDirection)[0]?.id ?? null : state.selectedOrderId,
-        handoffs: [...state.handoffs, { type: 'assembly.completed', order, occurredAt: action.occurredAt, orderStatus: 'OVEN', destination: 'FINISHING' }],
-        notice: `Pedido #${order.number}: montagem concluída. Pizzas no forno.`,
+        handoffs: [...state.handoffs, { type: 'assembly.completed', order, occurredAt: action.occurredAt, orderStatus: 'OVEN', destination: 'OVEN' }],
+        notice: `Pedido #${order.number}: montagem concluída. Pizzas aguardando forno.`,
       };
     }
     case 'ARRIVE': {

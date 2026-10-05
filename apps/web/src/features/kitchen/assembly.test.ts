@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assemblyReducer, canCompleteOrder, completedPizzas, createAssemblyState, orderStage, pizzasOf, sortOrders, transitionPizza } from './assembly';
+import { assemblyReducer, canCompleteAssembly, assemblyCompletedPizzas, createAssemblyState, orderStage, pizzasOf, sortOrders, transitionPizza } from './assembly';
 import { createMockOrder } from './mockOrders';
 import type { AssemblyState } from './assembly';
 import { additionalIngredients, catalogReviews, favoriteReprints, featuredFlavorIds, flavorsById, ingredients, ingredientsById, pizzaCrusts, pizzaFlavors } from './catalog';
@@ -18,7 +18,43 @@ function sendAllToOven(state: AssemblyState, orderId: string) {
 }
 
 describe('montagem individual e transferência de pedidos', () => {
-  it('não permite forno antes de iniciar, durante pausa ou depois de concluída', () => {
+  it.each([1, 30])('libera apenas a montagem de %i pizzas, sem indicar cozimento', count => {
+    const order = createMockOrder(2000, { customerName: 'Limites', channel: 'COUNTER', pizzas: Array.from({ length: count }, () => createPizzaDraft()), extraCount: 30 }, time);
+    let state: AssemblyState = { ...createAssemblyState(now), orders: [order], selectedOrderId: order.id };
+    for (const pizza of order.items) {
+      expect(canCompleteAssembly(state.orders[0])).toBe(false);
+      state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId: order.id, pizzaId: pizza.id, action: 'START' });
+      state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId: order.id, pizzaId: pizza.id, action: 'SEND_TO_OVEN' });
+    }
+    expect(canCompleteAssembly(state.orders[0])).toBe(true);
+    expect(assemblyCompletedPizzas(state.orders[0])).toBe(count);
+    state = assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId: order.id, occurredAt: time });
+    expect(state.selectedOrderId).toBeNull();
+    expect(state.handoffs[0].order.items.every(pizza => pizza.status === 'WAITING_OVEN')).toBe(true);
+    expect(state.handoffs[0].destination).toBe('OVEN');
+    expect(state.handoffs[0].order.extraCount).toBe(30);
+  });
+
+  it('trocas repetidas preservam pausa e seleção sem afetar outra pizza', () => {
+    let state = createAssemblyState(now);
+    const [first, second] = state.orders;
+    const pizza = first.items[1];
+    state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId: first.id, pizzaId: pizza.id, action: 'START' });
+    state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId: first.id, pizzaId: pizza.id, action: 'PAUSE' });
+    for (let index = 0; index < 20; index++) {
+      state = assemblyReducer(state, { type: 'SELECT_ORDER', orderId: second.id });
+      state = assemblyReducer(state, { type: 'SELECT_PIZZA', orderId: second.id, pizzaId: second.items[0].id });
+      state = assemblyReducer(state, { type: 'SELECT_ORDER', orderId: first.id });
+      state = assemblyReducer(state, { type: 'SELECT_PIZZA', orderId: first.id, pizzaId: first.items[index % 3].id });
+    }
+    expect(state.orders[0].items[1]).toMatchObject({ status: 'ASSEMBLING', paused: true });
+    expect(state.orders[1]).toBe(second);
+    expect(assemblyCompletedPizzas(state.orders[0])).toBe(0);
+    state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId: first.id, pizzaId: pizza.id, action: 'SEND_TO_OVEN' });
+    expect(state.orders[0].items[1].status).toBe('ASSEMBLING');
+  });
+
+  it('não permite forno antes de iniciar, durante pausa ou depois da montagem concluída', () => {
     const pizza = pizzasOf(createAssemblyState(now).orders[0])[0];
     expect(transitionPizza(pizza, 'SEND_TO_OVEN')).toBe(pizza);
     expect(transitionPizza(pizza, 'PAUSE')).toBe(pizza);
@@ -26,11 +62,11 @@ describe('montagem individual e transferência de pedidos', () => {
     const paused = transitionPizza(active, 'PAUSE');
     expect(paused.paused).toBe(true);
     expect(transitionPizza(paused, 'SEND_TO_OVEN')).toBe(paused);
-    const completed = transitionPizza(transitionPizza(paused, 'RESUME'), 'SEND_TO_OVEN');
-    expect(completed.status).toBe('OVEN');
-    expect(transitionPizza(completed, 'START')).toBe(completed);
-    expect(transitionPizza(completed, 'SEND_TO_OVEN')).toBe(completed);
-    expect(pizza.status).toBe('WAITING');
+    const awaitingOven = transitionPizza(transitionPizza(paused, 'RESUME'), 'SEND_TO_OVEN');
+    expect(awaitingOven.status).toBe('WAITING_OVEN');
+    expect(transitionPizza(awaitingOven, 'START')).toBe(awaitingOven);
+    expect(transitionPizza(awaitingOven, 'SEND_TO_OVEN')).toBe(awaitingOven);
+    expect(pizza.status).toBe('WAITING_ASSEMBLY');
   });
 
   it('mantém a timeline em montagem quando há forno + montagem + aguardando', () => {
@@ -41,26 +77,26 @@ describe('montagem individual e transferência de pedidos', () => {
     state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId, pizzaId: pizzas[0].id, action: 'START' });
     state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId, pizzaId: pizzas[0].id, action: 'SEND_TO_OVEN' });
     state = assemblyReducer(state, { type: 'PIZZA_ACTION', orderId, pizzaId: pizzas[1].id, action: 'START' });
-    expect(pizzasOf(state.orders[0]).map(item => item.status)).toEqual(['OVEN', 'IN_PRODUCTION', 'WAITING']);
-    expect(completedPizzas(state.orders[0])).toBe(1);
+    expect(pizzasOf(state.orders[0]).map(item => item.status)).toEqual(['WAITING_OVEN', 'ASSEMBLING', 'WAITING_ASSEMBLY']);
+    expect(assemblyCompletedPizzas(state.orders[0])).toBe(1);
     expect(orderStage(state.orders[0])).toBe('IN_PRODUCTION');
-    expect(canCompleteOrder(state.orders[0])).toBe(false);
-    expect(assemblyReducer(state, { type: 'COMPLETE_ORDER', orderId, occurredAt: time })).toBe(state);
+    expect(canCompleteAssembly(state.orders[0])).toBe(false);
+    expect(assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId, occurredAt: time })).toBe(state);
   });
 
-  it('transfere uma única vez, preservando extras e o estado real do forno', () => {
+  it('transfere uma única vez, preservando extras e o estado de espera pelo forno', () => {
     let state = createAssemblyState(now);
     const orderId = state.orders[0].id;
     state = sendAllToOven(state, orderId);
     expect(orderStage(state.orders[0])).toBe('OVEN');
-    expect(completedPizzas(state.orders[0])).toBe(3);
-    state = assemblyReducer(state, { type: 'COMPLETE_ORDER', orderId, occurredAt: time });
+    expect(assemblyCompletedPizzas(state.orders[0])).toBe(3);
+    state = assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId, occurredAt: time });
     expect(state.orders).toHaveLength(4);
     expect(state.selectedOrderId).toBe(state.orders[0].id);
     expect(state.handoffs).toHaveLength(1);
-    expect(state.handoffs[0]).toMatchObject({ type: 'assembly.completed', orderStatus: 'OVEN', destination: 'FINISHING' });
+    expect(state.handoffs[0]).toMatchObject({ type: 'assembly.completed', orderStatus: 'OVEN', destination: 'OVEN' });
     expect(state.handoffs[0].order.extraCount).toBe(3);
-    expect(assemblyReducer(state, { type: 'COMPLETE_ORDER', orderId, occurredAt: time })).toBe(state);
+    expect(assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId, occurredAt: time })).toBe(state);
   });
 
   it('lembra a pizza selecionada por pedido sem alterar estados na seleção', () => {
@@ -85,7 +121,7 @@ describe('montagem individual e transferência de pedidos', () => {
     expect(state.orders.at(-1)!.extraCount).toBe(5);
     for (const order of [...state.orders]) {
       state = sendAllToOven(state, order.id);
-      state = assemblyReducer(state, { type: 'COMPLETE_ORDER', orderId: order.id, occurredAt: time });
+      state = assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId: order.id, occurredAt: time });
     }
     expect(state.selectedOrderId).toBeNull();
     expect(state.orders).toHaveLength(0);
@@ -100,7 +136,7 @@ describe('montagem individual e transferência de pedidos', () => {
     expect(() => createMockOrder(1, { ...input, extraCount: -1 }, time)).toThrow();
     const order = createMockOrder(1, input, time);
     expect(order.extraCount).toBe(0);
-    expect(canCompleteOrder({ ...order, items: [] })).toBe(false);
+    expect(canCompleteAssembly({ ...order, items: [] })).toBe(false);
   });
 });
 
@@ -160,8 +196,8 @@ describe('catálogo oficial e composição por referência', () => {
     expect(resolveIngredients(pizza.firstHalf).map(item => item.id)).not.toContain('ervilha');
     pizza.firstHalf.modifiers.length = 0;
     expect(order.items[0].firstHalf.modifiers).toHaveLength(2);
-    const finished = transitionPizza(transitionPizza(order.items[0], 'START'), 'SEND_TO_OVEN');
-    expect(canCompleteOrder({ ...order, items: [finished] })).toBe(true);
+    const awaitingOven = transitionPizza(transitionPizza(order.items[0], 'START'), 'SEND_TO_OVEN');
+    expect(canCompleteAssembly({ ...order, items: [awaitingOven] })).toBe(true);
   });
 
   it('rejeita adicionais não oficiais, borda inexistente e remoção fora da receita', () => {
@@ -190,7 +226,7 @@ describe('ordenação da fila', () => {
     expect(state.sortDirection).toBe('DESC');
     expect(state.selectedOrderId).toBe(orderId);
     state = sendAllToOven(state, orderId);
-    state = assemblyReducer(state, { type: 'COMPLETE_ORDER', orderId, occurredAt: time });
+    state = assemblyReducer(state, { type: 'COMPLETE_ASSEMBLY', orderId, occurredAt: time });
     expect(state.selectedOrderId).toBe('demo-order-1005');
     expect(assemblyReducer(state, { type: 'TOGGLE_SORT' }).sortDirection).toBe('ASC');
   });

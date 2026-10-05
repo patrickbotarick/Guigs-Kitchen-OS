@@ -73,20 +73,20 @@
 .ka-pizza-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; align-content: start; }
 .ka-pizza-card { display: flex; flex-direction: column; justify-content: center; gap: 10px; width: 100%; min-height: 115px; border: 1px solid var(--ka-line); border-radius: 6px; background: #fff; padding: 11px 8px; text-align: left; }
 .ka-pizza-card-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ka-pizza-card-top > strong { flex: 1; min-width: 0; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+.ka-pizza-card-top > strong { flex: 1 1 120px; min-width: 0; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
 .ka-pizza-number { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: #dedee0; font-size: 22px; font-weight: 600; }
 .ka-pizza-status { font-size: 11px; border-radius: 20px; padding: 3px 7px; background: #e5e4e6; white-space: nowrap; }
 .ka-pizza-meta { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; font-size: 13px; }
 .ka-pizza-meta > span, .ka-detail-meta > span { background: #ededf0; border-radius: 20px; padding: 4px 8px; }
-.ka-pizza-in_production { background: #fff4f5; border-color: #d88791; }
-.ka-pizza-in_production .ka-pizza-number { background: #ffdde3; }
-.ka-pizza-in_production .ka-pizza-status { background: #ffe16a; color: #704b00; }
+.ka-pizza-assembling { background: #fff4f5; border-color: #d88791; }
+.ka-pizza-assembling .ka-pizza-number { background: #ffdde3; }
+.ka-pizza-assembling .ka-pizza-status { background: #ffe16a; color: #704b00; }
 .ka-pizza-card.is-selected { border-color: var(--ka-red); box-shadow: 0 4px 8px #1714191c; }
-.ka-pizza-waiting.is-selected { background: #fff8f9; }
-.ka-pizza-oven { background: #effaf3; border-color: #b5dfc4; }
-.ka-pizza-oven .ka-pizza-number { background: var(--ka-green); color: #fff; }
-.ka-pizza-oven .ka-pizza-status { background: #d3efdd; color: #19653c; }
-.ka-pizza-oven.is-selected { border-color: #218652; }
+.ka-pizza-waiting_assembly.is-selected { background: #fff8f9; }
+.ka-pizza-waiting_oven { background: #effaf3; border-color: #b5dfc4; }
+.ka-pizza-waiting_oven .ka-pizza-number { background: var(--ka-green); color: #fff; }
+.ka-pizza-waiting_oven .ka-pizza-status { background: #d3efdd; color: #19653c; }
+.ka-pizza-waiting_oven.is-selected { border-color: #218652; }
 .ka-order-footer { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 8px; flex: none; }
 .ka-timeline { display: flex; align-items: center; justify-content: space-between; list-style: none; padding: 9px 5px; margin: 0; border: 1px solid var(--ka-line); border-radius: 6px; min-height: 81px; }
 .ka-timeline li { flex: 1; text-align: center; font-size: 10px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -126,8 +126,8 @@
 .ka-pause { background: #976018; }
 .ka-send { background: var(--ka-red); }
 .ka-send:disabled { background: #dba0a7; color: #4b2228 !important; }
-.ka-pizza-done { min-height: 115px; border: 1px solid #a6d9b7; border-radius: 6px; background: #edf9f1; color: #217041; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; text-align: center; padding: 12px; }
-.ka-pizza-done > span { font-size: 12px; }
+.ka-assembly-complete { min-height: 115px; border: 1px solid #a6d9b7; border-radius: 6px; background: #edf9f1; color: #217041; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; text-align: center; padding: 12px; }
+.ka-assembly-complete > span { font-size: 12px; }
 .ka-empty { grid-column: 2 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border-radius: 7px; background: #fff; text-align: center; padding: 30px; }
 .ka-empty > span { color: #23854f; font-size: 48px; }
 .ka-muted { color: #69636f; padding: 12px; }

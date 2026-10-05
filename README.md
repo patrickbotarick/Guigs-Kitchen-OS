@@ -86,8 +86,8 @@ Para iniciar o projeto completo, continue usando `npm run dev` (ambiente prepara
 2. Selecione um pedido e uma pizza. Confira os ingredientes normais (check verde), removidos (X vermelho), adicionais (+ roxo) e observações. Na pizza meio a meio, use os botões de 1ª/2ª metade para alternar a ficha técnica. Essa seleção não altera o estado de montagem.
 3. Clique em **Iniciar montagem**, **Pausar** e **Retomar**. Durante a pausa, o envio ao forno fica bloqueado. Alternar pedidos preserva o progresso e a pizza selecionada de cada um.
 4. Clique em **Enviar pro forno**. Isso conclui **a montagem** daquela pizza: o card fica verde e o contador aumenta. Não significa que ela já assou.
-5. Repita nas demais pizzas. A timeline continua em **Montagem** enquanto qualquer pizza não tiver sido enviada. Todas no forno: timeline em **Forno** e botão **Concluir pedido** habilitado.
-6. Clique em **Concluir pedido**. O pedido sai da fila, o próximo na ordenação atual é selecionado e um evento local `assembly.completed` guarda o pedido com o contador de extras e seu estado real `OVEN`, destinado à futura finalização depois do forno.
+5. Repita nas demais pizzas. A timeline continua em **Montagem** enquanto qualquer pizza não tiver sido enviada. Todas aguardando forno: timeline em **Fila do forno** e botão **Concluir montagem** habilitado.
+6. Clique em **Concluir montagem**. O pedido sai da fila, o próximo na ordenação atual é selecionado e um evento local `assembly.completed` guarda o pedido com o contador de extras e suas pizzas em `WAITING_OVEN` e estágio agregado `OVEN` (fila do forno), com destino ao forno; não registra cozimento nem finalização.
 7. No servidor de desenvolvimento, use o pequeno link **Dev** no rodapé da fila para acessar o Simulator 2.0 na mesma aba. Escolha cliente, canal (iFood, WhatsApp, Retirada ou Balcão), 1–30 pizzas e 0–30 extras. Cada pizza tem tamanho, composição, sabores, borda e observação; em cada sabor, desmarque ingredientes para remover e selecione adicionais do catálogo. Broto permite apenas inteira; Grande permite inteira ou meio a meio, com alterações independentes por metade. Clique em **Simular chegada de novo pedido** e depois **Abrir montagem**. A chegada respeita a ordenação por horário sem trocar o pedido em trabalho.
 8. Teste 6 ou 30 pizzas e vários pedidos para verificar os scrolls independentes. As ações inferiores continuam acessíveis em 1024×768 e 1280×800. Ao concluir toda a fila, aparece o estado vazio; uma nova chegada volta a selecionar um pedido.
 
@@ -127,7 +127,7 @@ Veja [CATALOG.md](apps/web/src/features/kitchen/CATALOG.md) para origem, estrutu
 | `components/PizzaDetail.tsx` | Seletor de metade, ingredientes, modificadores, observações e ações por pizza |
 | `components/PizzaBuilder.tsx` | Configuração individual de tamanho, composição, borda, sabores e modificadores no simulador |
 | `components/AssemblyIcons.tsx` | Reutilização dos SVGs oficiais de `src/assets/kitchen/icons`, sem nova dependência |
-| `assembly.test.ts` | 13 testes de catálogo, composição, modificadores, ordenação e montagem |
+| `assembly.test.ts` | 16 testes de catálogo, composição, modificadores, ordenação e montagem, incluindo limites de 1/30 pizzas e trocas repetidas |
 
 Também foi criado `scripts/assembly-browser-smoke.mjs`. Arquivos existentes alterados: `apps/web/src/main.tsx` (rotas e link de acesso), `package.json` (comandos de teste) e este `README.md`. Nenhuma alteração em `Dashboard.tsx`, `NewOrder.tsx`, `Kitchen.tsx`, API, tipos compartilhados ou schema Prisma.
 
@@ -147,3 +147,7 @@ O primeiro comando cobre catálogo e regras do fluxo. O segundo cria os três ce
 2. Implementar transições individuais na API com estado esperado, timestamps, histórico e controle de concorrência. A API atual avança o pedido inteiro; não deve ser reutilizada como se já controlasse cada pizza.
 3. Calcular o estágio agregado no servidor e publicar alterações de itens/pedidos por Socket.IO. Substituir o estado mock por um adaptador de leitura/comandos da API, mantendo os componentes de apresentação.
 4. Receber os pedidos reais do balcão e persistir a transferência `assembly.completed` de forma atômica e idempotente. Após o forno, encaminhar para a futura finalização, que separará extras e devolverá o progresso ao balcão.
+
+## Fase 2C — preparação da integração
+
+O protótipo distingue `WAITING_ASSEMBLY`, `ASSEMBLING` e `WAITING_OVEN`, com pausa local durante montagem. **Concluir montagem** encerra apenas o trabalho do montador. O contrato alvo, a máquina persistente proposta, a agregação, a concorrência e o plano de migração aditiva estão em [docs/KITCHEN_DATA_MIGRATION.md](docs/KITCHEN_DATA_MIGRATION.md). API, Prisma e balcão permanecem no contrato legado nesta fase.

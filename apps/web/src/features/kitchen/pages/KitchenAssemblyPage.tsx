@@ -19,7 +19,7 @@ export function KitchenAssemblyPage() {
   return <div className="ka-screen" aria-label="Fila de Montagem">
     <OrderQueue orders={sortOrders(state.orders, state.sortDirection)} sortDirection={state.sortDirection} onToggleSort={() => dispatch({ type: 'TOGGLE_SORT' })} selectedId={state.selectedOrderId} now={now} onSelect={orderId => dispatch({ type: 'SELECT_ORDER', orderId })} />
     {order && pizza ? <>
-      <CurrentOrder order={order} selectedPizzaId={pizza.id} now={now} onSelectPizza={pizzaId => dispatch({ type: 'SELECT_PIZZA', orderId: order.id, pizzaId })} onComplete={() => dispatch({ type: 'COMPLETE_ORDER', orderId: order.id, occurredAt: new Date().toISOString() })} />
+      <CurrentOrder order={order} selectedPizzaId={pizza.id} now={now} onSelectPizza={pizzaId => dispatch({ type: 'SELECT_PIZZA', orderId: order.id, pizzaId })} onCompleteAssembly={() => dispatch({ type: 'COMPLETE_ASSEMBLY', orderId: order.id, occurredAt: new Date().toISOString() })} />
       <PizzaDetail key={pizza.id} pizza={pizza} onAction={action => dispatch({ type: 'PIZZA_ACTION', orderId: order.id, pizzaId: pizza.id, action })} />
     </> : <section className="ka-empty"><AssemblyIcon name="checkCircle" /><h1>Fila de montagem em dia</h1><p>Nenhum pedido aguardando montagem.</p><p>Novos pedidos aparecerão aqui.</p></section>}
     <div className="ka-sr-only" role="status">{state.notice}</div>

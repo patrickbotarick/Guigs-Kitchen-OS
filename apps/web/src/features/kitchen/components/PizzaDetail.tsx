@@ -15,12 +15,12 @@ function ObservationBox({ notes }: { notes: string | null }) {
   return <section className="ka-observations"><h3>Observações:</h3><p className={notes ? 'has-notes' : ''}>{notes || 'Nenhuma observação'}</p></section>;
 }
 function PizzaActions({ pizza, onAction }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void }) {
-  if (pizza.status === 'OVEN') return <div className="ka-pizza-done" role="status"><AssemblyIcon name="check" /><strong>Montagem concluída</strong><span>Pizza enviada para o forno</span></div>;
-  const action: PizzaAction = pizza.status === 'WAITING' ? 'START' : pizza.paused ? 'RESUME' : 'PAUSE';
+  if (pizza.status === 'WAITING_OVEN') return <div className="ka-assembly-complete" role="status"><AssemblyIcon name="check" /><strong>Montagem concluída</strong><span>Pizza aguardando forno</span></div>;
+  const action: PizzaAction = pizza.status === 'WAITING_ASSEMBLY' ? 'START' : pizza.paused ? 'RESUME' : 'PAUSE';
   const label = action === 'START' ? 'Iniciar montagem' : action === 'RESUME' ? 'Retomar' : 'Pausar';
   return <div className="ka-pizza-actions">
     <button className={`ka-start${action === 'PAUSE' ? ' ka-pause' : ''}`} type="button" onClick={() => onAction(action)}>{action !== 'PAUSE' && <AssemblyIcon name="play" />}{label}</button>
-    <button className="ka-send" type="button" disabled={pizza.status !== 'IN_PRODUCTION' || pizza.paused} onClick={() => onAction('SEND_TO_OVEN')}><AssemblyIcon name="flame" /><span>Enviar pro forno{pizza.status === 'WAITING' && <small>Disponível após iniciar a montagem</small>}{pizza.paused && <small>Retome a montagem para enviar</small>}</span></button>
+    <button className="ka-send" type="button" disabled={pizza.status !== 'ASSEMBLING' || pizza.paused} onClick={() => onAction('SEND_TO_OVEN')}><AssemblyIcon name="flame" /><span>Enviar pro forno{pizza.status === 'WAITING_ASSEMBLY' && <small>Disponível após iniciar a montagem</small>}{pizza.paused && <small>Retome a montagem para enviar</small>}</span></button>
   </div>;
 }
 export function PizzaDetail({ pizza, onAction }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void }) {

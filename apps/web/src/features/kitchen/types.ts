@@ -1,10 +1,11 @@
-import type { ItemStatus, ModifierKind, OrderStatus, OrderView } from '@guigs/shared';
+import type { ModifierKind, OrderStatus, OrderView } from '@guigs/shared';
 import type { PizzaSize } from './catalog';
 
-// Kitchen projections deliberately contain only production data from the shared contract.
+// Local assembly projection: item states are distinct from the persisted order states.
+// WAITING_OVEN means assembly ended; baking has not started or completed.
 export type OrderChannel = 'IFOOD' | 'WHATSAPP' | 'PICKUP' | 'COUNTER';
 export type QueueSortDirection = 'ASC' | 'DESC';
-export type PizzaStatus = Extract<ItemStatus, 'WAITING' | 'IN_PRODUCTION' | 'OVEN'>;
+export type PizzaStatus = 'WAITING_ASSEMBLY' | 'ASSEMBLING' | 'WAITING_OVEN';
 export type AssemblyOrderStatus = Extract<OrderStatus, 'WAITING_PRODUCTION' | 'IN_PRODUCTION' | 'OVEN'>;
 export interface Ingredient {
   id: string;
@@ -38,7 +39,8 @@ export interface AssemblyHandoff {
   type: 'assembly.completed';
   order: AssemblyOrder;
   occurredAt: string;
+  // Aggregate queue stage only; never proof of baking.
   orderStatus: 'OVEN';
-  destination: 'FINISHING';
+  destination: 'OVEN';
 }
 export type PizzaAction = 'START' | 'PAUSE' | 'RESUME' | 'SEND_TO_OVEN';
