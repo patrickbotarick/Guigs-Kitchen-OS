@@ -10,6 +10,8 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
   const browser = await chromium.launch({ executablePath, headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // HTTP-only snapshot/read regression; avoid connecting to the store's unrelated Socket.IO server.
+    await context.route('**:3333/socket.io/**', route => route.abort());
     let fail = false, slow = true, release;
     const gate = new Promise(done => { release = done; });
     const writes = [], errors = [];
@@ -82,7 +84,11 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     // Historical snapshot fixtures differ from the live catalog; no recipe reconstruction is allowed.
     const snapshot = structuredClone(saved.items[0].snapshot);
     snapshot.firstHalf.name = 'Calabresa histórica'; snapshot.firstHalf.ingredients[0].name = 'Ingrediente histórico'; snapshot.crust.name = 'Borda histórica';
-    await prisma.pizzaItem.update({ where: { id: saved.items[0].id }, data: { recipeSnapshot: snapshot } });
+    // Synthetic historical fixture update must advance the aggregate version used by reconciliation.
+    await prisma.$transaction([
+      prisma.pizzaItem.update({ where: { id: saved.items[0].id }, data: { recipeSnapshot: snapshot } }),
+      prisma.order.update({ where: { id: saved.id }, data: { version: { increment: 1 } } }),
+    ]);
     await assembly.getByRole('button', { name: 'Atualizar', exact: true }).click();
     await assembly.getByRole('button', { name: /Pizza 1, Calabresa histórica/ }).click();
     await assembly.getByRole('heading', { name: 'Calabresa histórica', exact: true }).waitFor();

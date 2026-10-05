@@ -7,6 +7,8 @@ import { IdempotencyConflictError, StructuredValidationError, type StructuredOrd
 import { createStructuredOrderSchema, type Order } from '@guigs/shared';
 import { pizzaCommandSchema } from '@guigs/shared';
 import { PizzaCommandConflictError, PizzaCommandNotFoundError, type PizzaCommandService } from './pizza-commands.js';
+import { type KitchenNotification } from '@guigs/shared';
+import { commandNotifications } from './kitchen-events.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -16,7 +18,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -29,6 +31,10 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
     try {
       const orderId = z.string().cuid().parse(req.params.orderId), pizzaId = z.string().cuid().parse(req.params.pizzaId);
       const result = await commands.execute(orderId, pizzaId, pizzaCommandSchema.parse(req.body));
+      // execute resolves after COMMIT; replay and every failed/rolled-back command emit nothing.
+      for (const notification of commandNotifications(result)) {
+        try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação Kitchen após commit:', error); }
+      }
       res.set('Idempotency-Replayed', String(result.replayed)).json(result);
     } catch (error) { next(error); }
   });

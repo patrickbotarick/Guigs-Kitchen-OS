@@ -184,4 +184,10 @@ Fase 3C.1 fechada no commit local `eab3060`. Pedidos reais agora permitem Inicia
 
 Enviar ao forno grava WAITING_OVEN e conclusão da montagem; não inicia forno nem timer. O pedido sai da fila quando todas as montagens terminam. DEV continua local e separado. Migration aditiva de recibos, backup antes de aplicar e nenhuma escrita de teste no banco da loja.
 
-Validação: 71 testes API, 28 montagem, lint/typecheck/build e navegadores. `npm run test:assembly:commands:browser` valida balcão → comandos → SQLite, refresh, resposta perdida/replay e conflito entre dois tablets com API compilada/banco descartável em 3348. Detalhes/arquivos/limites: [PHASE_3C2_ASSEMBLY_COMMANDS.md](docs/PHASE_3C2_ASSEMBLY_COMMANDS.md). Socket.IO por pizza, locks, identidade de montador, forno e finalização continuam fora desta entrega.
+Validação: 71 testes API, 28 montagem, lint/typecheck/build e navegadores. `npm run test:assembly:commands:browser` valida balcão → comandos → SQLite, refresh, resposta perdida/replay e conflito entre dois tablets com API compilada/banco descartável em 3348. Detalhes/arquivos/limites: [PHASE_3C2_ASSEMBLY_COMMANDS.md](docs/PHASE_3C2_ASSEMBLY_COMMANDS.md). Socket.IO por pizza, locks, identidade de montador, forno e finalização ficaram fora do escopo original da 3C.2.
+
+## Fase 3D.1 — realtime entre dispositivos
+
+Fase 3C.2 fechada no commit local `b1892a4`. Assembly recebe `kitchen.pizza.updated` e `kitchen.order.updated` versionados, emitidos somente após commit; novos pedidos reutilizam `order.created`. Notificações levam a GET v2 com reconciliação por versão, deduplicação e proteção contra respostas antigas. Connect/reconnect ressincroniza explicitamente; fallback passa a 120 segundos e indicador discreto mostra Online/Reconectando/Offline. Concorrência, idempotência, 409 e DEV separado permanecem.
+
+`npm run test:assembly:realtime:browser` usa API 3349/Vite 5180/SQLite descartáveis e dois clientes reais para balcão → fila, comandos alternados, evento perdido/reconexão e reinício da API. 73 testes API e 34 montagem. Não há operador/claim/lock ou operações de forno/finalização. Contratos, arquivos, testes e limites em [PHASE_3D1_REALTIME.md](docs/PHASE_3D1_REALTIME.md).

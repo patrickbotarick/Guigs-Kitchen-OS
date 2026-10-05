@@ -19,6 +19,10 @@
 .ka-screen button { color: inherit; font: inherit; touch-action: manipulation; }
 .ka-screen button:disabled { cursor: not-allowed; }
 .ka-read-error { color: #a12626; padding: 8px; overflow-wrap: anywhere; }
+.ka-connection { font-size: 12px; padding: 3px 6px; color: #68636b; }
+.ka-connection::before { content: '●'; margin-right: 5px; }
+.ka-connection-online { color: #187544; }
+.ka-connection-offline { color: #a12626; }
 .ka-order-note { padding: 8px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .ka-screen button:focus-visible, .ka-screen a:focus-visible { outline: 3px solid #461588; outline-offset: 2px; }
 .ka-icon { width: 24px; height: 24px; flex: none; vertical-align: middle; }

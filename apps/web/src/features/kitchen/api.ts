@@ -27,6 +27,11 @@ export function createAssemblyApi(baseUrl: string, fetcher: typeof fetch = fetch
     return response.json();
   }
   return {
+    async listOrders(signal?: AbortSignal): Promise<Order[]> {
+      const data = await get('/orders/v2', signal);
+      if (!Array.isArray(data)) throw new Error('Resposta inválida da API: lista de pedidos esperada.');
+      return data.flatMap(value => { const read = readOrderData(value); return read.legacy ? [] : [read.order]; });
+    },
     async readOrder(id: string, signal?: AbortSignal): Promise<Order> {
       const read = readOrderData(await get(`/orders/v2/${encodeURIComponent(id)}`, signal));
       if (read.legacy) throw new Error('Pedido v1 não aceita comandos de montagem v2.');

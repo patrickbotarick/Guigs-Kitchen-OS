@@ -1,10 +1,12 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { apiUrl } from '../../api';
-import { AssemblyApiError, createAssemblyApi, mapAssemblyOrder } from './api';
+import { AssemblyApiError, createAssemblyApi } from './api';
 import { assemblyReducer, type AssemblyAction, type AssemblyState } from './assembly';
 import { pizzaCommandSchema, type PizzaCommandInput } from '@guigs/shared';
 import { clientId } from '../../utils/clientId';
 import type { PizzaAction } from './types';
+import { io } from 'socket.io-client';
+import { AssemblyReconciliation, type AssemblyConnection } from './realtime';
 
 type PendingCommand = { orderId: string; pizzaId: string; input: PizzaCommandInput };
 const storageKey = 'guigs-assembly-pending-command';
@@ -29,6 +31,26 @@ export function usePersistentAssembly() {
   const [reloadVersion, setReloadVersion] = useState(0);
   const loaded = useRef(false);
   const readEpoch = useRef(0);
+  const reconciliation = useRef(new AssemblyReconciliation());
+  const [connection, setConnection] = useState<AssemblyConnection>('RECONNECTING');
+  // Coalesce the pizza/order pair and bursts without opening parallel list requests.
+  useEffect(() => {
+    const socket = io(apiUrl, { reconnection: true });
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => { if (refreshTimer) return; refreshTimer = setTimeout(() => { refreshTimer = undefined; setReloadVersion(version => version + 1); }, 100); };
+    const online = () => { setConnection('RECONNECTING'); socket.connect(); refresh(); };
+    const offline = () => setConnection('OFFLINE');
+    socket.on('connect', () => { setConnection('ONLINE'); refresh(); }); // Every connection, including reconnection, performs GET.
+    socket.on('disconnect', () => setConnection(navigator.onLine ? 'RECONNECTING' : 'OFFLINE'));
+    socket.on('connect_error', () => setConnection('OFFLINE'));
+    socket.io.on('reconnect_attempt', () => setConnection(navigator.onLine ? 'RECONNECTING' : 'OFFLINE'));
+    socket.on('kitchen.pizza.updated', value => { if (reconciliation.current.notify('kitchen.pizza.updated', value)) refresh(); });
+    socket.on('kitchen.order.updated', value => { if (reconciliation.current.notify('kitchen.order.updated', value)) refresh(); });
+    socket.on('order.created', value => { if (reconciliation.current.created(value)) refresh(); });
+    socket.on('order.updated', value => { if (reconciliation.current.created(value)) refresh(); });
+    window.addEventListener('online', online); window.addEventListener('offline', offline);
+    return () => { socket.disconnect(); clearTimeout(refreshTimer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
+  }, []);
   const [pending, setPending] = useState(readPending);
   const pendingRef = useRef(pending);
   const [commandBusy, setCommandBusy] = useState(false);
@@ -45,13 +67,14 @@ export function usePersistentAssembly() {
     let timer: ReturnType<typeof setTimeout>;
     async function load() {
       const epoch = readEpoch.current;
+      const revision = reconciliation.current.beginRead();
       controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       setLoading(!loaded.current); setRefreshing(true);
       try {
-        const orders = await api.list(controller.signal);
+        const orders = await api.listOrders(controller.signal);
         if (!active || epoch !== readEpoch.current) return;
-        reduce({ type: 'SYNC_ORDERS', orders }); loaded.current = true; setError('');
+        reduce({ type: 'SYNC_ORDERS', orders: reconciliation.current.reconcile(orders, revision) }); loaded.current = true; setError('');
       } catch (cause) {
         if (active) setError(`Não foi possível carregar os pedidos. ${cause instanceof Error && cause.name !== 'AbortError' ? cause.message : 'API indisponível ou tempo de resposta excedido.'} Os dados já carregados foram preservados.`);
       } finally {
@@ -59,7 +82,7 @@ export function usePersistentAssembly() {
         if (active) {
           setLoading(false); setRefreshing(false);
           // Delay after completion prevents overlapping requests, including slow/offline APIs.
-          timer = setTimeout(() => void load(), 30_000);
+          timer = setTimeout(() => void load(), 120_000);
         }
       }
     }
@@ -82,7 +105,7 @@ export function usePersistentAssembly() {
       const confirmed = result.replayed ? await api.readOrder(value.orderId, controller.signal) : result.order;
       if (alive.current) {
         loaded.current = true; setLoading(false);
-        reduce({ type: 'APPLY_SERVER_ORDER', orderId: confirmed.id, order: mapAssemblyOrder(confirmed), version: confirmed.version });
+        reduce({ type: 'SYNC_ORDERS', orders: reconciliation.current.confirm(confirmed) });
         setCommandNotice(value.input.command === 'SEND_TO_OVEN' ? 'Montagem confirmada. Pizza aguardando forno.' : 'Comando confirmado e salvo.');
       }
       clearPending();
@@ -91,7 +114,7 @@ export function usePersistentAssembly() {
         clearPending();
         try {
           const current = await api.readOrder(value.orderId, controller.signal);
-          if (alive.current) { loaded.current = true; setLoading(false); reduce({ type: 'APPLY_SERVER_ORDER', orderId: current.id, order: mapAssemblyOrder(current), version: current.version }); setCommandNotice('Esta pizza foi atualizada ou o comando está em conflito. Os dados foram recarregados.'); }
+          if (alive.current) { loaded.current = true; setLoading(false); reduce({ type: 'SYNC_ORDERS', orders: reconciliation.current.confirm(current) }); setCommandNotice('Esta pizza foi atualizada ou o comando está em conflito. Os dados foram recarregados.'); }
         } catch { if (alive.current) setCommandError('Conflito confirmado, mas não foi possível recarregar o pedido. Use Atualizar.'); }
       } else if (cause instanceof AssemblyApiError && [400, 404].includes(cause.status)) {
         clearPending(); if (alive.current) setCommandError(cause.message);
@@ -109,5 +132,5 @@ export function usePersistentAssembly() {
     void send({ orderId, pizzaId, input: { command: command[action], expectedState: pizza.status, expectedVersion: pizza.productionVersion, clientCommandId: clientId() } });
   }
   return { state, dispatch, loading, refreshing, error: [error, commandError].filter(Boolean).join(' '), reload: () => setReloadVersion(version => version + 1), performCommand,
-    commandBusy, pendingCommand: pending !== null, commandNotice, retryCommand: () => { if (pendingRef.current) void send(pendingRef.current); } };
+    connection, commandBusy, pendingCommand: pending !== null, commandNotice, retryCommand: () => { if (pendingRef.current) void send(pendingRef.current); } };
 }

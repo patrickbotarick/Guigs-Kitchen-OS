@@ -1,5 +1,7 @@
 # Fase 3C.2 — comandos persistentes de montagem
 
+Esta fase foi fechada no commit `b1892a4`. O polling de 30 segundos e a ausência de realtime abaixo descrevem a entrega 3C.2; a evolução atual está em [PHASE_3D1_REALTIME.md](PHASE_3D1_REALTIME.md).
+
 ## Git e escopo
 
 Fase 3C.1 fechada no commit local `eab3060` — `feat: load persistent v2 orders in assembly`. Antes do commit foram revisados arquivos e passaram lint, typecheck, 55 testes da API, 27 da montagem e build. Nenhum banco, backup ou segredo foi incluído. `package-lock.json` permanece fora do commit, com as mesmas diferenças ambientais peer/libc (15 linhas adicionadas e 42 removidas), sem dependências/versões novas. Sem push. A 3C.2 fica como alterações locais para revisão.

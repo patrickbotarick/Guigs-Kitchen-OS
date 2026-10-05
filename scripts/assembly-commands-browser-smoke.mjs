@@ -14,6 +14,8 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     let dropStart = true, release;
     const gate = new Promise(done => { release = done; });
     for (const [context, device] of [[a, 'A'], [b, 'B']]) {
+      // This regression intentionally keeps B stale to exercise HTTP 409. Real sockets are tested separately.
+      await context.route('**:3333/socket.io/**', route => route.abort());
       context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
       await context.route('**:3333/orders/v2**', async route => {
         const request = route.request(), path = new URL(request.url()).pathname;

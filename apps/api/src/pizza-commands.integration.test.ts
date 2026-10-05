@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { assemblyCommandTransitions, type Order, type PizzaCommandInput } from '@guigs/shared';
+import { assemblyCommandTransitions, type KitchenNotification, type Order, type PizzaCommandInput } from '@guigs/shared';
 import { createApp } from './app.js';
 import { OrderService } from './orders.js';
 import { StructuredOrderService } from './structured-orders.js';
@@ -13,7 +13,8 @@ import { PizzaCommandConflictError, PizzaCommandService } from './pizza-commands
 const name = `test-commands-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
 const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma);
-const app = createApp(new OrderService(prisma), () => {}, 'http://localhost:5173', creation, commands);
+const notifications: KitchenNotification[] = [];
+const app = createApp(new OrderService(prisma), () => {}, 'http://localhost:5173', creation, commands, event => notifications.push(event));
 async function fresh(count = 1) {
   return (await creation.create({ clientRequestId: randomUUID(), customerName: 'Comando teste', customerPhone: '', fulfillmentType: 'DELIVERY', channel: 'COUNTER', notes: '', extras: [],
     pizzas: Array.from({ length: count }, () => ({ size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null })) })).order;
@@ -105,6 +106,18 @@ describe('comandos persistentes por pizza', () => {
     expect(results[0].order).toEqual(results[1].order);
     expect((await take(order.id)).receipts).toHaveLength(1);
   });
+  it('HTTP publica pizza e pedido somente após commit; replay e 409 não publicam', async () => {
+    const order = await fresh(), payload = input(order, 'START_ASSEMBLY'), start = notifications.length;
+    const first = await request(app).post(endpoint(order)).send(payload);
+    expect(first.status).toBe(200);
+    expect(notifications.slice(start).map(event => event.type)).toEqual(['kitchen.pizza.updated', 'kitchen.order.updated']);
+    expect(notifications[start].payload).toMatchObject({ schemaVersion: 1, orderId: order.id, commandId: payload.clientCommandId, version: 1 });
+    expect(notifications[start + 1].payload).toMatchObject({ status: 'IN_PRODUCTION', version: 1 });
+    expect((await take(order.id)).receipts).toHaveLength(1);
+    expect((await request(app).post(endpoint(order)).send(payload)).status).toBe(200);
+    expect((await request(app).post(endpoint(order)).send(input(order, 'START_ASSEMBLY'))).status).toBe(409);
+    expect(notifications).toHaveLength(start + 2);
+  });
   it('agrega pedido misto e só muda para OVEN após todas as montagens', async () => {
     let order = await fresh(2);
     for (const index of [0, 1]) {
@@ -121,9 +134,12 @@ describe('comandos persistentes por pizza', () => {
     const saved = await take(order.id); expect(saved.order?.status).toBe('IN_PRODUCTION'); expect(saved.order?.version).toBe(2); expect(saved.pizzas.map(pizza => pizza.version)).toEqual([1, 1]);
   });
   it.each(['PizzaProductionHistory', 'OrderStatusHistory', 'PizzaCommandReceipt', 'Order'])('falha em %s causa rollback integral e permite reenvio', async table => {
-    const order = await fresh(), before = await take(order.id), payload = input(order, 'START_ASSEMBLY');
+    const order = await fresh(), before = await take(order.id), payload = input(order, 'START_ASSEMBLY'), eventCount = notifications.length;
     await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_command BEFORE ${table === 'Order' ? 'UPDATE' : 'INSERT'} ON "${table}" BEGIN SELECT RAISE(ABORT, 'command failed'); END`);
-    try { await expect(commands.execute(order.id, order.items[0].id, payload)).rejects.toThrow(); expect(await take(order.id)).toEqual(before); }
+    try {
+      expect((await request(app).post(endpoint(order)).send(payload)).status).toBe(500);
+      expect(await take(order.id)).toEqual(before); expect(notifications).toHaveLength(eventCount);
+    }
     finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_command'); }
     expect((await commands.execute(order.id, order.items[0].id, payload)).replayed).toBe(false);
   });

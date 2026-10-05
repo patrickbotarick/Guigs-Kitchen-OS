@@ -4,9 +4,10 @@ import { assemblyReducer, createAssemblyState, type AssemblyAction, type Assembl
 import './assembly.css';
 import { usePersistentAssembly } from './usePersistentAssembly';
 import type { PizzaAction } from './types';
+import type { AssemblyConnection } from './realtime';
 
 const AssemblyContext = createContext<{ state: AssemblyState; dispatch: Dispatch<AssemblyAction>; mode: 'API' | 'DEMO'; loading: boolean; refreshing: boolean; error: string; reload: () => void;
-  performCommand: (orderId: string, pizzaId: string, action: PizzaAction) => void; commandBusy: boolean; pendingCommand: boolean; commandNotice: string; retryCommand: () => void } | null>(null);
+  performCommand: (orderId: string, pizzaId: string, action: PizzaAction) => void; connection: AssemblyConnection; commandBusy: boolean; pendingCommand: boolean; commandNotice: string; retryCommand: () => void } | null>(null);
 
 export function AssemblyLayout() {
   const location = useLocation();
@@ -16,7 +17,7 @@ export function AssemblyLayout() {
 function DemoAssembly() {
   const [state, dispatch] = useReducer(assemblyReducer, undefined, () => createAssemblyState(Date.now()));
   return <AssemblyContext.Provider value={{ state, dispatch, mode: 'DEMO', loading: false, refreshing: false, error: '', reload: () => {},
-    performCommand: (orderId, pizzaId, action) => dispatch({ type: 'PIZZA_ACTION', orderId, pizzaId, action }), commandBusy: false, pendingCommand: false, commandNotice: '', retryCommand: () => {} }}><Outlet /></AssemblyContext.Provider>;
+    performCommand: (orderId, pizzaId, action) => dispatch({ type: 'PIZZA_ACTION', orderId, pizzaId, action }), connection: 'OFFLINE', commandBusy: false, pendingCommand: false, commandNotice: '', retryCommand: () => {} }}><Outlet /></AssemblyContext.Provider>;
 }
 function PersistentAssembly() {
   const value = usePersistentAssembly();
