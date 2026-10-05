@@ -169,3 +169,11 @@ Os endpoints existentes continuam usando v1. Na entrega 3A, a leitura compatíve
 Leitura v2 explícita: `GET /orders/v2` e `GET /orders/v2/:id`. A montagem continua em demonstração e a fila/painel legacy mostra apenas v1. Extras possuem lista inicial interna a confirmar com a operação. API parada + backup antes de `npm run db:generate` e `npm run db:migrate`; nova migration adiciona somente idempotência. Detalhes, payload, arquivos, limites e sequência da Fase 3C: [PHASE_3B_STRUCTURED_CREATION.md](docs/PHASE_3B_STRUCTURED_CREATION.md).
 
 Validação: lint, typecheck, 55 testes da API, 16 da montagem, build e navegador da montagem. `npm run test:structured:browser` verifica v2/replay após perda de resposta/refresh e o fluxo v1 com duas abas, usando API compilada e banco descartável. Requer Vite em 5173 e porta 3333 livre; não roda contra o banco da loja.
+
+## Fase 3C.1 — Assembly lê pedidos persistidos
+
+`/kitchen/assembly` carrega `GET /orders/v2`, filtrando pedidos WAITING_PRODUCTION/IN_PRODUCTION com montagem pendente. Exibe receitas históricas pelos snapshots, estados por pizza, observações e contador de extras. Polling a cada 30 segundos após terminar a consulta, timeout de 10 segundos, atualização manual e preservação dos dados em erro. Pedidos v1 são ignorados explicitamente, sem conversão.
+
+A fila real é somente leitura: ações de montagem/conclusão desabilitadas. Demonstração separada em DEV por `/kitchen/assembly?source=demo`; simulador em `/kitchen/assembly/dev`, sem mistura automática com dados reais. Formulário v2 oferece Abrir montagem após salvar.
+
+`npm run test:assembly`: 27 testes. `npm run test:assembly:persisted:browser`: balcão → SQLite → API → Assembly usando API compilada/banco descartável na porta 3347, sem alterar o banco da loja. Detalhes, arquivos e limites: [PHASE_3C1_ASSEMBLY_READ.md](docs/PHASE_3C1_ASSEMBLY_READ.md). Fase 3B fechada no commit local `c5ffbc8`; comandos persistentes ficam para a 3C.2.

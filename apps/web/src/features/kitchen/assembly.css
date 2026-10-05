@@ -18,6 +18,8 @@
 .ka-screen h1, .ka-screen h2, .ka-screen h3, .ka-screen p { margin: 0; }
 .ka-screen button { color: inherit; font: inherit; touch-action: manipulation; }
 .ka-screen button:disabled { cursor: not-allowed; }
+.ka-read-error { color: #a12626; padding: 8px; overflow-wrap: anywhere; }
+.ka-order-note { padding: 8px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .ka-screen button:focus-visible, .ka-screen a:focus-visible { outline: 3px solid #461588; outline-offset: 2px; }
 .ka-icon { width: 24px; height: 24px; flex: none; vertical-align: middle; }
 .ka-icon-mask { display: inline-block; background-color: currentColor; mask-repeat: no-repeat; mask-size: contain; mask-position: center; -webkit-mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; }

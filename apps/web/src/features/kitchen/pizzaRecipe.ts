@@ -1,15 +1,29 @@
 import { additionalIngredients, crustsById, flavorsById, ingredientsById } from './catalog';
 import type { Ingredient, PizzaDraft, PizzaHalf, PizzaRecipe } from './types';
+import type { RecipeSnapshot } from '@guigs/shared';
 
 export function createPizzaDraft(flavorId = 'calabresa'): PizzaDraft & { composition: 'WHOLE' } {
   return { size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId, modifiers: [] }, crustId: 'tradicional', notes: null };
 }
-export function pizzaName(pizza: PizzaRecipe): string {
+export function pizzaName(pizza: PizzaRecipe & { snapshot?: RecipeSnapshot }): string {
+  if (pizza.snapshot) return pizza.snapshot.composition === 'HALF_HALF' ? `${pizza.snapshot.firstHalf.name} / ${pizza.snapshot.secondHalf!.name}` : pizza.snapshot.firstHalf.name;
   const first = flavorsById[pizza.firstHalf.flavorId].name;
   return pizza.composition === 'HALF_HALF' ? `${first} / ${flavorsById[pizza.secondHalf.flavorId].name}` : first;
 }
-export function crustLabel(pizza: PizzaDraft): string {
+export function crustLabel(pizza: PizzaDraft & { snapshot?: RecipeSnapshot }): string {
+  if (pizza.snapshot) return `Borda: ${pizza.snapshot.crust.name}`;
   return pizza.crustId === 'tradicional' ? 'Borda tradicional' : `Borda: ${crustsById[pizza.crustId].name}`;
+}
+export function halfName(pizza: PizzaDraft & { snapshot?: RecipeSnapshot }, index: 0 | 1): string {
+  if (pizza.snapshot) return index === 1 ? pizza.snapshot.secondHalf!.name : pizza.snapshot.firstHalf.name;
+  return flavorsById[index === 1 && pizza.composition === 'HALF_HALF' ? pizza.secondHalf.flavorId : pizza.firstHalf.flavorId].name;
+}
+export function pizzaIngredients(pizza: PizzaDraft & { snapshot?: RecipeSnapshot }, index: 0 | 1): Ingredient[] {
+  if (pizza.snapshot) {
+    const half = index === 1 && pizza.snapshot.composition === 'HALF_HALF' ? pizza.snapshot.secondHalf! : pizza.snapshot.firstHalf;
+    return half.ingredients.map(ingredient => ({ id: ingredient.ingredientId, name: ingredient.name, kind: ingredient.kind }));
+  }
+  return resolveIngredients(index === 1 && pizza.composition === 'HALF_HALF' ? pizza.secondHalf : pizza.firstHalf);
 }
 export function resolveIngredients(half: PizzaHalf): Ingredient[] {
   const flavor = flavorsById[half.flavorId];

@@ -3,7 +3,7 @@ import { pizzasOf } from '../assembly';
 import type { AssemblyOrder, OrderChannel, QueueSortDirection } from '../types';
 import { AssemblyIcon } from './AssemblyIcons';
 
-export const channelLabels: Record<OrderChannel, string> = { IFOOD: 'iFood', WHATSAPP: 'WhatsApp', PICKUP: 'Retirada', COUNTER: 'Balcão' };
+export const channelLabels: Record<OrderChannel, string> = { IFOOD: 'iFood', WHATSAPP: 'WhatsApp', PICKUP: 'Retirada', COUNTER: 'Balcão', OTHER: 'Outro' };
 export function ChannelBadge({ channel }: { channel: OrderChannel }) {
   return <span className={`ka-channel ka-channel-${channel.toLowerCase()}`}>{channelLabels[channel]}</span>;
 }
@@ -23,11 +23,13 @@ function OrderQueueCard({ order, selected, now, onSelect }: { order: AssemblyOrd
     {selected && <OrderCounts order={order} />}
   </button>;
 }
-export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, onToggleSort }: { orders: AssemblyOrder[]; selectedId: string | null; now: number; onSelect: (id: string) => void; sortDirection: QueueSortDirection; onToggleSort: () => void }) {
+export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, onToggleSort, mode, loading, refreshing, error, reload }: { orders: AssemblyOrder[]; selectedId: string | null; now: number; onSelect: (id: string) => void; sortDirection: QueueSortDirection; onToggleSort: () => void; mode: 'API' | 'DEMO'; loading: boolean; refreshing: boolean; error: string; reload: () => void }) {
   return <aside className="ka-queue" aria-labelledby="ka-queue-title">
     <div className="ka-queue-heading"><h2 id="ka-queue-title">Fila de Pedidos</h2><button className="ka-sort" type="button" aria-label={`Ordenar fila: ${sortDirection === 'ASC' ? 'mais antigo primeiro' : 'mais recente primeiro'}`} aria-pressed={sortDirection === 'DESC'} onClick={onToggleSort}><AssemblyIcon name="sort" /></button></div>
     <p className="ka-sort-label">{sortDirection === 'ASC' ? 'Mais antigo primeiro' : 'Mais recente primeiro'}</p>
+    {loading && <p role="status">Carregando pedidos...</p>}
+    {error && <p className="ka-read-error" role="alert">{error}</p>}
     <div className="ka-queue-scroll">{orders.length ? orders.map(order => <OrderQueueCard key={order.id} order={order} selected={order.id === selectedId} now={now} onSelect={() => onSelect(order.id)} />) : <p className="ka-muted">Nenhum pedido na fila.</p>}</div>
-    <footer className="ka-queue-footer"><Link to="/">Balcão</Link><span>Demonstração local</span>{import.meta.env.DEV && <Link to="/kitchen/assembly/dev" aria-label="Abrir simulador de desenvolvimento">Dev</Link>}</footer>
+    <footer className="ka-queue-footer"><Link to="/">Balcão</Link><span>{mode === 'API' ? 'Persistidos · somente leitura' : 'DEV · Simulador local'}</span>{mode === 'API' && <button type="button" disabled={refreshing} onClick={reload}>{refreshing ? 'Atualizando...' : 'Atualizar'}</button>}{mode === 'DEMO' && <Link to="/kitchen/assembly">Pedidos persistidos</Link>}{import.meta.env.DEV && <Link to="/kitchen/assembly/dev" aria-label="Abrir simulador de desenvolvimento">Dev</Link>}</footer>
   </aside>;
 }

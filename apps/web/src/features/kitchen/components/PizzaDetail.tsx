@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { flavorsById, pizzaSizes } from '../catalog';
-import { crustLabel, pizzaName, resolveIngredients } from '../pizzaRecipe';
+import { pizzaSizes } from '../catalog';
+import { crustLabel, halfName, pizzaIngredients, pizzaName } from '../pizzaRecipe';
 import type { Ingredient, PizzaAction, PizzaItem } from '../types';
 import { AssemblyIcon } from './AssemblyIcons';
 
@@ -14,23 +14,24 @@ function IngredientList({ ingredients }: { ingredients: Ingredient[] }) {
 function ObservationBox({ notes }: { notes: string | null }) {
   return <section className="ka-observations"><h3>Observações:</h3><p className={notes ? 'has-notes' : ''}>{notes || 'Nenhuma observação'}</p></section>;
 }
-function PizzaActions({ pizza, onAction }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void }) {
+function PizzaActions({ pizza, onAction, readOnly }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void; readOnly: boolean }) {
   if (pizza.status === 'WAITING_OVEN') return <div className="ka-assembly-complete" role="status"><AssemblyIcon name="check" /><strong>Montagem concluída</strong><span>Pizza aguardando forno</span></div>;
+  if (readOnly && !['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'].includes(pizza.status)) return <div className="ka-assembly-complete"><strong>Somente leitura</strong><span>Pizza fora da etapa de montagem</span></div>;
   const action: PizzaAction = pizza.status === 'WAITING_ASSEMBLY' ? 'START' : pizza.paused ? 'RESUME' : 'PAUSE';
   const label = action === 'START' ? 'Iniciar montagem' : action === 'RESUME' ? 'Retomar' : 'Pausar';
+  if (readOnly) return <div className="ka-pizza-actions"><button className="ka-start" type="button" disabled>{label}</button><button className="ka-send" type="button" disabled><AssemblyIcon name="flame" /><span>Enviar pro forno<small>Leitura persistida · ações indisponíveis nesta fase</small></span></button></div>;
   return <div className="ka-pizza-actions">
     <button className={`ka-start${action === 'PAUSE' ? ' ka-pause' : ''}`} type="button" onClick={() => onAction(action)}>{action !== 'PAUSE' && <AssemblyIcon name="play" />}{label}</button>
     <button className="ka-send" type="button" disabled={pizza.status !== 'ASSEMBLING' || pizza.paused} onClick={() => onAction('SEND_TO_OVEN')}><AssemblyIcon name="flame" /><span>Enviar pro forno{pizza.status === 'WAITING_ASSEMBLY' && <small>Disponível após iniciar a montagem</small>}{pizza.paused && <small>Retome a montagem para enviar</small>}</span></button>
   </div>;
 }
-export function PizzaDetail({ pizza, onAction }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void }) {
+export function PizzaDetail({ pizza, onAction, readOnly = false }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void; readOnly?: boolean }) {
   const [halfIndex, setHalfIndex] = useState<0 | 1>(0);
-  const half = halfIndex === 1 && pizza.composition === 'HALF_HALF' ? pizza.secondHalf : pizza.firstHalf;
   return <aside className="ka-detail" aria-labelledby="ka-detail-title"><h2 id="ka-detail-title">Pizza selecionada</h2>
     <div className="ka-detail-scroll" key={pizza.id}><header className="ka-detail-header"><h3>{pizzaName(pizza)}</h3><div className="ka-detail-meta"><span>{pizzaSizes[pizza.size].label}</span>{pizza.composition === 'HALF_HALF' && <span>Meio a meio</span>}<span>{crustLabel(pizza)}</span></div></header>
-      {pizza.composition === 'HALF_HALF' && <div className="ka-half-selector" role="group" aria-label="Metade exibida">{[pizza.firstHalf, pizza.secondHalf].map((part, index) => <button key={index} type="button" aria-pressed={halfIndex === index} onClick={() => setHalfIndex(index as 0 | 1)}>{index + 1}ª metade — {flavorsById[part.flavorId].name}</button>)}</div>}
-      <IngredientList ingredients={resolveIngredients(half)} /><ObservationBox notes={pizza.notes} />
+      {pizza.composition === 'HALF_HALF' && <div className="ka-half-selector" role="group" aria-label="Metade exibida">{[0, 1].map(index => <button key={index} type="button" aria-pressed={halfIndex === index} onClick={() => setHalfIndex(index as 0 | 1)}>{index + 1}ª metade — {halfName(pizza, index as 0 | 1)}</button>)}</div>}
+      <IngredientList ingredients={pizzaIngredients(pizza, halfIndex)} /><ObservationBox notes={pizza.notes} />
     </div>
-    <PizzaActions pizza={pizza} onAction={onAction} />
+    <PizzaActions pizza={pizza} onAction={onAction} readOnly={readOnly} />
   </aside>;
 }

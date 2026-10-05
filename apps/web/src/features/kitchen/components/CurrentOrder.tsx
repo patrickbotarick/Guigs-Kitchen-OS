@@ -6,6 +6,8 @@ import { AssemblyIcon, type IconName } from './AssemblyIcons';
 import { ChannelBadge, OrderCounts, WaitTime } from './OrderQueue';
 
 export function pizzaStatusLabel(pizza: PizzaItem) {
+  const persistedLabels = { ASSEMBLY_PAUSED: 'Pausada', IN_OVEN: 'No forno', BAKED: 'Assada', FINISHING: 'Em finalização', FINISHED: 'Finalizada', CANCELLED: 'Cancelada' };
+  if (pizza.status in persistedLabels) return persistedLabels[pizza.status as keyof typeof persistedLabels];
   if (pizza.status === 'WAITING_OVEN') return 'Aguardando forno';
   if (pizza.paused) return 'Pausada';
   return pizza.status === 'ASSEMBLING' ? 'Em montagem' : 'Aguardando';
@@ -27,18 +29,19 @@ function OrderTimeline({ order }: { order: AssemblyOrder }) {
   const active = { WAITING_PRODUCTION: 0, IN_PRODUCTION: 1, OVEN: 2 }[orderStage(order)];
   return <ol className="ka-timeline" aria-label="Etapas do pedido">{stages.map((stage, index) => <li key={stage.label} className={index <= active ? 'is-reached' : ''} aria-current={index === active ? 'step' : undefined}><span className="ka-stage-icon"><AssemblyIcon name={stage.icon} /></span><span>{stage.label}</span></li>)}</ol>;
 }
-function CompleteAssemblyButton({ order, onCompleteAssembly }: { order: AssemblyOrder; onCompleteAssembly: () => void }) {
-  const ready = canCompleteAssembly(order);
+function CompleteAssemblyButton({ order, onCompleteAssembly, readOnly }: { order: AssemblyOrder; onCompleteAssembly: () => void; readOnly: boolean }) {
+  const ready = !readOnly && canCompleteAssembly(order);
   return <div className="ka-complete"><button type="button" disabled={!ready} onClick={onCompleteAssembly} aria-describedby="ka-complete-hint"><AssemblyIcon name="check" />Concluir montagem</button><span id="ka-complete-hint">{ready ? 'Montagem pronta · seguir para o forno' : 'Disponível após montar todas as pizzas'}</span></div>;
 }
-export function CurrentOrder({ order, selectedPizzaId, now, onSelectPizza, onCompleteAssembly }: { order: AssemblyOrder; selectedPizzaId: string | undefined; now: number; onSelectPizza: (id: string) => void; onCompleteAssembly: () => void }) {
+export function CurrentOrder({ order, selectedPizzaId, now, onSelectPizza, onCompleteAssembly, readOnly = false }: { order: AssemblyOrder; selectedPizzaId: string | undefined; now: number; onSelectPizza: (id: string) => void; onCompleteAssembly: () => void; readOnly?: boolean }) {
   const pizzas = pizzasOf(order);
   return <section className="ka-current" aria-label={`Pedido atual #${order.number}`}>
     <OrderHeader order={order} now={now} />
     <div className="ka-pizzas-heading"><h2>Pizzas do pedido ({pizzas.length})</h2><span role="status">Montagens concluídas ({assemblyCompletedPizzas(order)} / {pizzas.length})</span></div>
     <div className="ka-order-scroll" key={order.id}>
+      {order.notes && <div className="ka-order-note" aria-label="Observação do pedido"><strong>Observação do pedido</strong><p>{order.notes}</p></div>}
       <div className="ka-pizza-grid">{pizzas.map((pizza, index) => <PizzaCard key={pizza.id} pizza={pizza} index={index} selected={pizza.id === selectedPizzaId} onSelect={() => onSelectPizza(pizza.id)} />)}</div>
     </div>
-    <footer className="ka-order-footer"><OrderTimeline order={order} /><CompleteAssemblyButton order={order} onCompleteAssembly={onCompleteAssembly} /></footer>
+    <footer className="ka-order-footer"><OrderTimeline order={order} /><CompleteAssemblyButton order={order} onCompleteAssembly={onCompleteAssembly} readOnly={readOnly} /></footer>
   </section>;
 }

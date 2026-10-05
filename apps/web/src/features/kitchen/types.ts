@@ -1,11 +1,11 @@
-import type { ModifierKind, OrderStatus, OrderView, PizzaProductionState, PizzaRecipe } from '@guigs/shared';
+import type { ModifierKind, OrderStatus, OrderView, PizzaProductionState, PizzaRecipe, RecipeSnapshot } from '@guigs/shared';
 export type { IngredientModifier, PizzaHalf, PizzaRecipe } from '@guigs/shared';
 
 // Local assembly projection: item states are distinct from the persisted order states.
 // WAITING_OVEN means assembly ended; baking has not started or completed.
-export type OrderChannel = 'IFOOD' | 'WHATSAPP' | 'PICKUP' | 'COUNTER';
+export type OrderChannel = 'IFOOD' | 'WHATSAPP' | 'PICKUP' | 'COUNTER' | 'OTHER';
 export type QueueSortDirection = 'ASC' | 'DESC';
-export type PizzaStatus = Extract<PizzaProductionState, 'WAITING_ASSEMBLY' | 'ASSEMBLING' | 'WAITING_OVEN'>;
+export type PizzaStatus = PizzaProductionState;
 export type AssemblyOrderStatus = Extract<OrderStatus, 'WAITING_PRODUCTION' | 'IN_PRODUCTION' | 'OVEN'>;
 export interface Ingredient {
   id: string;
@@ -17,11 +17,14 @@ export type PizzaItem = PizzaDraft & Pick<OrderView['items'][number], 'id'> & {
   kind: 'PIZZA';
   status: PizzaStatus;
   paused: boolean;
+  snapshot?: RecipeSnapshot;
 };
 export interface AssemblyOrder extends Pick<OrderView, 'id' | 'number' | 'customerName' | 'receivedAt'> {
   channel: OrderChannel;
   items: PizzaItem[];
   extraCount: number;
+  notes?: string | null;
+  persistedStatus?: AssemblyOrderStatus;
 }
 export interface SimulatedOrderInput {
   customerName: string;

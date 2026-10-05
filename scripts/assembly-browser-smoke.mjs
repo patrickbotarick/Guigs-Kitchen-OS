@@ -19,7 +19,7 @@ try {
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (new URL(request.url()).port === '3333') apiRequests.push(request.url()); });
-  await page.goto(`${origin}/kitchen/assembly`);
+  await page.goto(`${origin}/kitchen/assembly?source=demo`);
   await page.getByRole('heading', { name: 'Pedido #1001', exact: true }).waitFor();
   assert.equal(await page.locator('.ka-queue-card').count(), 5);
   assert.equal(await page.locator('.ka-pizza-card').count(), 3, 'Sem slots vazios');
@@ -222,6 +222,7 @@ try {
   // Existing routes still mount in their original shell. API calls are stubbed for this read-only UI check.
   const reception = await context.newPage();
   await reception.route('**:3333/orders', route => route.fulfill({ json: [] }));
+  await reception.route('**:3333/orders/v2', route => route.fulfill({ json: [] }));
   await reception.route('**:3333/health', route => route.fulfill({ json: { status: 'ok' } }));
   await reception.goto(origin);
   await reception.getByRole('heading', { name: /Pedidos claros/ }).waitFor();
@@ -230,6 +231,8 @@ try {
   await reception.getByRole('link', { name: 'Cozinha', exact: true }).click();
   await reception.getByRole('heading', { name: 'Fila da cozinha', exact: true }).waitFor();
   await reception.getByRole('link', { name: 'Montagem', exact: true }).click();
+  await reception.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
+  await reception.goto(`${origin}/kitchen/assembly?source=demo`);
   await reception.getByRole('heading', { name: 'Pedido #1001', exact: true }).waitFor();
   console.info(`Montagem 2.0 validada: catálogo oficial, ordenação ASC/DESC, três cenários manuais, metades independentes com estado único, Broto, bordas, modificadores, extras apenas no contador, ausência de preços, fluxo completo, scroll e rotas existentes. Screenshots: ${screenshots}`);
 } finally { await browser.close(); }
