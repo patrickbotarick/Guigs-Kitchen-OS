@@ -31,7 +31,7 @@ function OrderTimeline({ order }: { order: AssemblyOrder }) {
 }
 function CompleteAssemblyButton({ order, onCompleteAssembly, readOnly }: { order: AssemblyOrder; onCompleteAssembly: () => void; readOnly: boolean }) {
   const ready = !readOnly && canCompleteAssembly(order);
-  return <div className="ka-complete"><button type="button" disabled={!ready} onClick={onCompleteAssembly} aria-describedby="ka-complete-hint"><AssemblyIcon name="check" />Concluir montagem</button><span id="ka-complete-hint">{ready ? 'Montagem pronta · seguir para o forno' : 'Disponível após montar todas as pizzas'}</span></div>;
+  return <div className="ka-complete"><button type="button" disabled={!ready} onClick={onCompleteAssembly} aria-describedby="ka-complete-hint"><AssemblyIcon name="check" />Concluir montagem</button><span id="ka-complete-hint">{readOnly ? 'Pedido avança automaticamente após enviar todas as pizzas ao forno' : ready ? 'Montagem pronta · seguir para o forno' : 'Disponível após montar todas as pizzas'}</span></div>;
 }
 export function CurrentOrder({ order, selectedPizzaId, now, onSelectPizza, onCompleteAssembly, readOnly = false }: { order: AssemblyOrder; selectedPizzaId: string | undefined; now: number; onSelectPizza: (id: string) => void; onCompleteAssembly: () => void; readOnly?: boolean }) {
   const pizzas = pizzasOf(order);

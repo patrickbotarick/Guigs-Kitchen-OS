@@ -36,6 +36,7 @@ export interface AssemblyState {
   sortDirection: QueueSortDirection;
 }
 export type AssemblyAction =
+  | { type: 'APPLY_SERVER_ORDER'; orderId: string; order: AssemblyOrder | null; version: number }
   | { type: 'SYNC_ORDERS'; orders: AssemblyOrder[] }
   | { type: 'TOGGLE_SORT' }
   | { type: 'SELECT_ORDER'; orderId: string }
@@ -52,6 +53,13 @@ export function createAssemblyState(now: number): AssemblyState {
 // Pure domain transitions; a future API adapter can replace dispatch without moving rules into cards.
 export function assemblyReducer(state: AssemblyState, action: AssemblyAction): AssemblyState {
   switch (action.type) {
+    case 'APPLY_SERVER_ORDER': {
+      const current = state.orders.find(order => order.id === action.orderId);
+      if (current && (current.persistedVersion ?? 0) > action.version) return state;
+      const orders = state.orders.filter(order => order.id !== action.orderId);
+      if (action.order) orders.push(action.order);
+      return assemblyReducer(state, { type: 'SYNC_ORDERS', orders });
+    }
     case 'SYNC_ORDERS': {
       const selectedPizzaIds = Object.fromEntries(action.orders.map(order => [order.id,
         order.items.find(pizza => pizza.id === state.selectedPizzaIds[order.id])?.id ?? order.items[0]?.id ?? '',

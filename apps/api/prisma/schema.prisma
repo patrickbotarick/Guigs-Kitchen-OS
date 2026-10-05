@@ -77,6 +77,7 @@ model Order {
   pizzaItems PizzaItem[]
   extraItems ExtraItem[]
   structuredCreation StructuredOrderCreation?
+  pizzaCommands PizzaCommandReceipt[]
 
   @@index([status, receivedAt])
 }
@@ -159,6 +160,7 @@ model PizzaItem {
   updatedAt DateTime @updatedAt
   halves PizzaHalf[]
   history PizzaProductionHistory[]
+  commands PizzaCommandReceipt[]
 
   @@unique([orderId, position])
   @@index([state, queuedAt])
@@ -222,6 +224,17 @@ model PizzaProductionHistory {
   reason String?
 
   @@index([pizzaId, changedAt])
+}
+
+model PizzaCommandReceipt {
+  clientCommandId String @id
+  payloadHash String
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  pizzaId String
+  pizza PizzaItem @relation(fields: [pizzaId], references: [id], onDelete: Restrict)
+  responseSnapshot Json
+  createdAt DateTime @default(now())
 }
 
 enum ActorType {

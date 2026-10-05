@@ -67,7 +67,7 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     assert.match(await assembly.getByLabel('Observação do pedido', { exact: true }).innerText(), /Observação geral persistida/);
     assert.match(await assembly.locator('.ka-counts').first().innerText(), /02 Extras/);
     assert.match(await assembly.locator('.ka-detail').innerText(), /Observação persistida/);
-    assert.equal(await assembly.getByRole('button', { name: 'Iniciar montagem', exact: true }).isDisabled(), true);
+    assert.equal(await assembly.getByRole('button', { name: 'Iniciar montagem', exact: true }).isDisabled(), false);
     assert.equal(await assembly.getByRole('button', { name: 'Concluir montagem', exact: true }).isDisabled(), true);
     await assembly.locator('.ka-pizza-card').nth(1).click();
     assert.match(await assembly.locator('.ka-detail').innerText(), /Removido:\s+cebola/);
@@ -100,6 +100,6 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     assert.equal(writes.length, 1, 'Somente criação pelo balcão; nenhuma ação POST pelo Assembly');
     assert.equal(await prisma.pizzaProductionHistory.count(), 33, 'Apenas históricos iniciais');
     assert.deepEqual(errors, []);
-    console.info('Assembly persistido aprovado: balcão → SQLite → GET v2 → fila real; 3 pizzas/Broto/metades/borda/modificadores/extras, snapshots históricos, somente leitura, loading/vazio/erro com preservação, ordenação e 30 pizzas. Banco descartável, API da loja preservada.');
+    console.info('Assembly persistido aprovado: balcão → SQLite → GET v2 → fila real; 3 pizzas/Broto/metades/borda/modificadores/extras, snapshots históricos, leitura sem ações neste teste, loading/vazio/erro com preservação, ordenação e 30 pizzas. Banco descartável, API da loja preservada.');
   } finally { await browser.close(); }
 });

@@ -18,6 +18,7 @@ export type PizzaItem = PizzaDraft & Pick<OrderView['items'][number], 'id'> & {
   status: PizzaStatus;
   paused: boolean;
   snapshot?: RecipeSnapshot;
+  productionVersion?: number;
 };
 export interface AssemblyOrder extends Pick<OrderView, 'id' | 'number' | 'customerName' | 'receivedAt'> {
   channel: OrderChannel;
@@ -25,6 +26,7 @@ export interface AssemblyOrder extends Pick<OrderView, 'id' | 'number' | 'custom
   extraCount: number;
   notes?: string | null;
   persistedStatus?: AssemblyOrderStatus;
+  persistedVersion?: number;
 }
 export interface SimulatedOrderInput {
   customerName: string;

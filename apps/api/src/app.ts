@@ -5,6 +5,8 @@ import { createOrderSchema, transitionOrderSchema, type OrderHistoryView, type O
 import { OrderNotFoundError, TransitionConflictError } from './orders.js';
 import { IdempotencyConflictError, StructuredValidationError, type StructuredOrderService } from './structured-orders.js';
 import { createStructuredOrderSchema, type Order } from '@guigs/shared';
+import { pizzaCommandSchema } from '@guigs/shared';
+import { PizzaCommandConflictError, PizzaCommandNotFoundError, type PizzaCommandService } from './pizza-commands.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -14,7 +16,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -23,6 +25,13 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  if (commands) app.post('/orders/v2/:orderId/pizzas/:pizzaId/commands', async (req, res, next) => {
+    try {
+      const orderId = z.string().cuid().parse(req.params.orderId), pizzaId = z.string().cuid().parse(req.params.pizzaId);
+      const result = await commands.execute(orderId, pizzaId, pizzaCommandSchema.parse(req.body));
+      res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+    } catch (error) { next(error); }
+  });
   if (structured) {
     app.post('/orders/v2', async (req, res, next) => {
       try {
@@ -89,6 +98,8 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
       res.status(400).json({ error: 'Payload inválido', issues: error.flatten() });
       return;
     }
+    if (error instanceof PizzaCommandConflictError) { res.status(409).json({ error: error.message }); return; }
+    if (error instanceof PizzaCommandNotFoundError) { res.status(404).json({ error: error.message }); return; }
     if (error instanceof StructuredValidationError) {
       res.status(400).json({ error: error.message }); return;
     }

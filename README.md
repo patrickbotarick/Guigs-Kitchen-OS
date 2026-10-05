@@ -177,3 +177,11 @@ Validação: lint, typecheck, 55 testes da API, 16 da montagem, build e navegado
 A fila real é somente leitura: ações de montagem/conclusão desabilitadas. Demonstração separada em DEV por `/kitchen/assembly?source=demo`; simulador em `/kitchen/assembly/dev`, sem mistura automática com dados reais. Formulário v2 oferece Abrir montagem após salvar.
 
 `npm run test:assembly`: 27 testes. `npm run test:assembly:persisted:browser`: balcão → SQLite → API → Assembly usando API compilada/banco descartável na porta 3347, sem alterar o banco da loja. Detalhes, arquivos e limites: [PHASE_3C1_ASSEMBLY_READ.md](docs/PHASE_3C1_ASSEMBLY_READ.md). Fase 3B fechada no commit local `c5ffbc8`; comandos persistentes ficam para a 3C.2.
+
+## Fase 3C.2 — comandos persistentes de montagem
+
+Fase 3C.1 fechada no commit local `eab3060`. Pedidos reais agora permitem Iniciar, Pausar, Retomar e Enviar pro forno por `POST /orders/v2/:orderId/pizzas/:pizzaId/commands`, com estado/versão esperados e clientCommandId. A transação inclui pizza, timestamps, histórico, agregação/versionamento do pedido e recibo idempotente. Não há atualização otimista cega; conflito 409 recarrega o pedido e envio incerto permite repetir o mesmo comando, inclusive após refresh na mesma aba.
+
+Enviar ao forno grava WAITING_OVEN e conclusão da montagem; não inicia forno nem timer. O pedido sai da fila quando todas as montagens terminam. DEV continua local e separado. Migration aditiva de recibos, backup antes de aplicar e nenhuma escrita de teste no banco da loja.
+
+Validação: 71 testes API, 28 montagem, lint/typecheck/build e navegadores. `npm run test:assembly:commands:browser` valida balcão → comandos → SQLite, refresh, resposta perdida/replay e conflito entre dois tablets com API compilada/banco descartável em 3348. Detalhes/arquivos/limites: [PHASE_3C2_ASSEMBLY_COMMANDS.md](docs/PHASE_3C2_ASSEMBLY_COMMANDS.md). Socket.IO por pizza, locks, identidade de montador, forno e finalização continuam fora desta entrega.

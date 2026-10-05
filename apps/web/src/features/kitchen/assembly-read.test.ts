@@ -81,4 +81,10 @@ describe('leitura persistida do Assembly', () => {
     expect(assemblyReducer(state, { type: 'SYNC_ORDERS', orders: [one] }).selectedPizzaIds).toEqual(state.selectedPizzaIds);
     expect(assemblyReducer(state, { type: 'SYNC_ORDERS', orders: [] }).selectedOrderId).toBeNull();
   });
+  it('resposta antiga de comando não regride a versão confirmada', () => {
+    const order = { ...mapAssemblyOrder(fixture())!, persistedVersion: 3 };
+    const state = assemblyReducer(createAssemblyState(Date.now()), { type: 'SYNC_ORDERS', orders: [order] });
+    expect(assemblyReducer(state, { type: 'APPLY_SERVER_ORDER', orderId: order.id, order: { ...order, persistedVersion: 1 }, version: 1 })).toBe(state);
+    expect(assemblyReducer(state, { type: 'APPLY_SERVER_ORDER', orderId: order.id, order: null, version: 4 }).orders).toEqual([]);
+  });
 });

@@ -162,6 +162,21 @@ export const createStructuredOrderSchema = z.object({
 });
 export type CreateStructuredOrderInput = z.infer<typeof createStructuredOrderSchema>;
 
+export const assemblyCommands = ['START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN'] as const;
+export const pizzaCommandSchema = z.object({
+  command: z.enum(assemblyCommands), expectedState: pizzaProductionStateSchema,
+  expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid(),
+}).strict();
+export type PizzaCommandInput = z.infer<typeof pizzaCommandSchema>;
+export const pizzaCommandResultSchema = z.object({ order: structuredOrderSchema, pizzaId: id, clientCommandId: z.string().uuid(), replayed: z.boolean() }).strict();
+export type PizzaCommandResult = z.infer<typeof pizzaCommandResultSchema>;
+export const assemblyCommandTransitions = {
+  START_ASSEMBLY: { from: 'WAITING_ASSEMBLY', to: 'ASSEMBLING' },
+  PAUSE_ASSEMBLY: { from: 'ASSEMBLING', to: 'ASSEMBLY_PAUSED' },
+  RESUME_ASSEMBLY: { from: 'ASSEMBLY_PAUSED', to: 'ASSEMBLING' },
+  SEND_TO_OVEN: { from: 'ASSEMBLING', to: 'WAITING_OVEN' },
+} as const;
+
 const transitions: Record<PizzaProductionState, readonly PizzaProductionState[]> = {
   WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'CANCELLED'],
   ASSEMBLY_PAUSED: ['ASSEMBLING', 'CANCELLED'], WAITING_OVEN: ['IN_OVEN', 'CANCELLED'],

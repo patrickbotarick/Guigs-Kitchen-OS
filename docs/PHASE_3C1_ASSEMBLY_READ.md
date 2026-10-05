@@ -1,5 +1,7 @@
 # Fase 3C.1 — leitura persistida do Assembly
 
+Este documento registra o escopo da 3C.1, fechada no commit `eab3060`. A evolução com comandos reais está em [PHASE_3C2_ASSEMBLY_COMMANDS.md](PHASE_3C2_ASSEMBLY_COMMANDS.md); as ações desabilitadas descritas abaixo correspondem à entrega anterior.
+
 ## Git e escopo
 
 Fase 3B fechada no commit local `c5ffbc8` — `feat: add structured v2 order creation`. Antes do commit foram revisados código, migration e arquivos incluídos; passaram lint, typecheck, 55 testes da API, 16 testes da montagem e build. Nenhum banco, backup, `.env` ou segredo foi incluído. `package-lock.json` foi preservado fora do commit: somente metadados ambientais `peer`/`libc`, sem mudança de dependências/versões. Não houve push.

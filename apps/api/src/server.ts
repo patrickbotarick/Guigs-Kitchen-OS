@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import { createApp } from './app.js';
 import { OrderService } from './orders.js';
 import { StructuredOrderService } from './structured-orders.js';
+import { PizzaCommandService } from './pizza-commands.js';
 
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
@@ -23,7 +24,7 @@ const allowedOrigin = (origin: string | undefined, callback: (error: Error | nul
 };
 const prisma = new PrismaClient();
 const orders = new OrderService(prisma);
-const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma));
+const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma));
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: allowedOrigin } });
 

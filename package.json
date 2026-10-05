@@ -21,6 +21,7 @@
     "test:assembly": "vitest run apps/web/src/features/kitchen/assembly.test.ts apps/web/src/features/kitchen/assembly-read.test.ts",
     "test:assembly:browser": "node scripts/assembly-browser-smoke.mjs",
     "test:assembly:persisted:browser": "node scripts/assembly-persisted-browser-smoke.mjs",
+    "test:assembly:commands:browser": "node scripts/assembly-commands-browser-smoke.mjs",
     "test:structured:browser": "node scripts/structured-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web"
   },
