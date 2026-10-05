@@ -29,6 +29,7 @@ beforeAll(async () => {
   legacyBefore = await prisma.$queryRawUnsafe(selectLegacy);
   historyBefore = await prisma.$queryRaw`SELECT * FROM "OrderStatusHistory"`;
   await apply(migration);
+  await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261005190000_structured_order_creation/migration.sql'), 'utf8'));
 });
 afterAll(async () => {
   await prisma.$disconnect();

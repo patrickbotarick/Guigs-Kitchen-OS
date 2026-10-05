@@ -2,9 +2,9 @@ import type { PrismaClient } from '@prisma/client';
 import { readOrderData, recipeSnapshotSchema, type CompatibleOrder } from '@guigs/shared';
 import { toOrderView } from './orders.js';
 
-// Internal preparation for v2 reads; existing HTTP routes remain on the legacy contract.
+// Compatible loader used by explicit v2 routes; unversioned HTTP routes retain v1.
 // Never infer structured data from a legacy name, size or aggregate status.
-export async function loadCompatibleOrder(prisma: PrismaClient, id: string): Promise<CompatibleOrder | null> {
+export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, id: string): Promise<CompatibleOrder | null> {
   const order = await prisma.order.findUnique({ where: { id }, include: {
     items: { include: { modifiers: true } },
     pizzaItems: { include: { halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,

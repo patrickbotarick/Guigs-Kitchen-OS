@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { NewOrder } from './pages/NewOrder';
+import { LegacyNewOrder } from './pages/LegacyNewOrder';
 import { Kitchen } from './pages/Kitchen';
 import { BrandLogo } from './components/BrandLogo';
 import { AssemblyLayout } from './features/kitchen/useAssembly';
@@ -26,6 +27,7 @@ function App() {
     <main><Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/orders/new" element={<NewOrder />} />
+      <Route path="/orders/new/legacy" element={<LegacyNewOrder />} />
       <Route path="/kitchen" element={<Kitchen />} />
       <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
         <Route index element={<KitchenAssemblyPage />} />

@@ -40,6 +40,8 @@ export const recipeSnapshotSchema = z.object({
   size: z.enum(pizzaSizes), composition: z.enum(pizzaCompositions),
   firstHalf: snapshotHalfSchema, secondHalf: snapshotHalfSchema.optional(),
   crust: pizzaCrustSchema,
+  // Optional for reading snapshots created before Phase 3B; new snapshots always preserve notes.
+  notes: notes.optional(),
 }).strict().superRefine((snapshot, ctx) => {
   if ((snapshot.composition === 'HALF_HALF') !== Boolean(snapshot.secondHalf) || (snapshot.size === 'BROTO' && snapshot.composition !== 'WHOLE')) {
     ctx.addIssue({ code: 'custom', message: 'Snapshot incompatível com tamanho/composição.' });
@@ -82,7 +84,7 @@ export function createRecipeSnapshot(input: PizzaDraft, catalog: RecipeCatalog):
   if (!crust || crust.id !== pizza.crustId) throw new Error('Borda não cadastrada.');
   // Zod creates detached data; later catalog/input edits cannot mutate the snapshot.
   return recipeSnapshotSchema.parse({ schemaVersion: 1, catalogRevisionId: catalog.revisionId, size: pizza.size, composition: pizza.composition,
-    firstHalf: resolveHalf(pizza.firstHalf), ...(pizza.composition === 'HALF_HALF' ? { secondHalf: resolveHalf(pizza.secondHalf) } : {}), crust });
+    firstHalf: resolveHalf(pizza.firstHalf), ...(pizza.composition === 'HALF_HALF' ? { secondHalf: resolveHalf(pizza.secondHalf) } : {}), crust, notes: pizza.notes });
 }
 
 export const pizzaProductionSchema = z.object({
@@ -112,7 +114,7 @@ export const pizzaItemSchema = z.object({ ...baseItem, kind: z.literal('PIZZA'),
   const modifierKeys = (modifiers: IngredientModifier[]) => modifiers.map(modifier => `${modifier.type}:${modifier.ingredientId}`).sort().join('|');
   const sameHalf = (half: PizzaHalf, saved: z.infer<typeof snapshotHalfSchema>) => half.flavorId === saved.flavorId
     && modifierKeys(half.modifiers) === modifierKeys(saved.modifiers);
-  if (recipe.size !== snapshot.size || recipe.composition !== snapshot.composition || recipe.crustId !== snapshot.crust.id
+  if ((snapshot.notes !== undefined && snapshot.notes !== pizza.notes) || recipe.size !== snapshot.size || recipe.composition !== snapshot.composition || recipe.crustId !== snapshot.crust.id
     || !sameHalf(recipe.firstHalf, snapshot.firstHalf)
     || (recipe.composition === 'HALF_HALF' && (!snapshot.secondHalf || !sameHalf(recipe.secondHalf, snapshot.secondHalf)))) {
     ctx.addIssue({ code: 'custom', message: 'Receita e snapshot incompatíveis.' });
@@ -145,6 +147,20 @@ export const structuredOrderSchema = z.object({
   if (Boolean(order.packingFinishedAt) !== Boolean(order.packingFinishedBy)) ctx.addIssue({ code: 'custom', message: 'Embalagem exige data e responsável.' });
 });
 export type Order = z.infer<typeof structuredOrderSchema>;
+
+// Creation accepts intent only, never client IDs/positions/status/timestamps/snapshots.
+export const createStructuredOrderSchema = z.object({
+  clientRequestId: z.string().uuid(),
+  customerName: id, customerPhone: z.string().trim().max(30).default(''),
+  fulfillmentType: z.enum(orderTypes), channel: z.enum(['COUNTER', 'WHATSAPP', 'IFOOD', 'OTHER']),
+  notes: z.string().trim().max(1000).default(''),
+  pizzas: z.array(pizzaDraftSchema).min(1).max(30),
+  extras: z.array(z.object({ extraCatalogId: id, quantity: z.number().int().min(1).max(30), notes }).strict()).max(30).default([]),
+}).strict().superRefine((input, ctx) => {
+  if (input.extras.reduce((sum, extra) => sum + extra.quantity, 0) > 30) ctx.addIssue({ code: 'custom', message: 'Máximo de 30 unidades de extras.' });
+  if (new Set(input.extras.map(extra => extra.extraCatalogId)).size !== input.extras.length) ctx.addIssue({ code: 'custom', message: 'Use quantidade em vez de duplicar o mesmo extra.' });
+});
+export type CreateStructuredOrderInput = z.infer<typeof createStructuredOrderSchema>;
 
 const transitions: Record<PizzaProductionState, readonly PizzaProductionState[]> = {
   WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'CANCELLED'],

@@ -3,6 +3,8 @@ import cors from 'cors';
 import { z, ZodError } from 'zod';
 import { createOrderSchema, transitionOrderSchema, type OrderHistoryView, type OrderView, type TransitionOrderInput } from '@guigs/shared';
 import { OrderNotFoundError, TransitionConflictError } from './orders.js';
+import { IdempotencyConflictError, StructuredValidationError, type StructuredOrderService } from './structured-orders.js';
+import { createStructuredOrderSchema, type Order } from '@guigs/shared';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -12,12 +14,35 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void)) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
+  // A valid 30-pizza structured request can exceed the legacy 100kb limit.
+  // Keep the old endpoint's parser unchanged.
+  app.use('/orders/v2', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  if (structured) {
+    app.post('/orders/v2', async (req, res, next) => {
+      try {
+        const result = await structured.create(createStructuredOrderSchema.parse(req.body));
+        if (!result.replayed) publish('order.created', result.order);
+        res.set('Idempotency-Replayed', String(result.replayed)).status(result.replayed ? 200 : 201).json(result.order);
+      } catch (error) { next(error); }
+    });
+    app.get('/orders/v2', async (_req, res, next) => {
+      try { res.json(await structured.listActive()); } catch (error) { next(error); }
+    });
+    app.get('/orders/v2/:id', async (req, res, next) => {
+      try {
+        const id = z.string().cuid().parse(req.params.id);
+        const order = await structured.get(id);
+        if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+        res.json(order);
+      } catch (error) { next(error); }
+    });
+  }
   app.get('/orders', async (_req, res, next) => {
     try { res.json(await orders.listActive()); } catch (error) { next(error); }
   });
@@ -63,6 +88,12 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
     if (error instanceof ZodError) {
       res.status(400).json({ error: 'Payload inválido', issues: error.flatten() });
       return;
+    }
+    if (error instanceof StructuredValidationError) {
+      res.status(400).json({ error: error.message }); return;
+    }
+    if (error instanceof IdempotencyConflictError) {
+      res.status(409).json({ error: error.message }); return;
     }
     if (error instanceof SyntaxError && 'body' in error) {
       res.status(400).json({ error: 'JSON inválido' });

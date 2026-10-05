@@ -76,8 +76,18 @@ model Order {
   packingFinishedBy String?
   pizzaItems PizzaItem[]
   extraItems ExtraItem[]
+  structuredCreation StructuredOrderCreation?
 
   @@index([status, receivedAt])
+}
+
+model StructuredOrderCreation {
+  clientRequestId String @id
+  payloadHash String
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  responseSnapshot Json
+  createdAt DateTime @default(now())
 }
 
 enum StructuredOrderChannel {

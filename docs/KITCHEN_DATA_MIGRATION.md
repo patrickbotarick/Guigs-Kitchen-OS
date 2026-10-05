@@ -352,4 +352,8 @@ Fase 3B ainda precisa: catálogo confiável/revisão estável (incluindo extras)
 
 Lint, typecheck das três workspaces e build API/frontend passaram. `npm test`: 34 testes passaram (10 anteriores + 18 de domínio + 6 de persistência/compatibilidade). `npm run test:assembly`: 16 passaram. O teste de navegador da montagem também passou após reutilizar tipos/regras compartilhados. `prisma migrate diff` não detecta diferença entre migrations e schema; `migrate status` confirma banco atualizado.
 
-A API foi retomada após a migration e responde HTTP 200 em `/health` e `/orders`. A leitura HTTP foi verificada sem criar pedidos reais. O frontend temporário de validação foi encerrado. O lockfile continua preexistente e fora do commit 2C. A Fase 3A permanece como alterações locais para revisão; nenhuma Fase 3B ou push foi executado.
+A API foi retomada após a migration 3A e a leitura HTTP foi verificada sem criar pedidos reais. A Fase 3A foi posteriormente fechada no commit local `5b472b4`, após repetir as validações, preservando o lockfile ambiental fora do commit. Nenhum push foi executado.
+
+## 11. Fase 3B implementada
+
+A criação estruturada, catálogo compartilhado, idempotência transacional, snapshot/histórico inicial, formulário v2 e leitura HTTP explícita foram implementados. Estado e payload atuais, nova migration aditiva, convivência v1/v2, validações, riscos e sequência da 3C estão em [PHASE_3B_STRUCTURED_CREATION.md](PHASE_3B_STRUCTURED_CREATION.md). A montagem continua em memória; nenhuma transição individual persistente, lock ou realtime por pizza foi implementado.

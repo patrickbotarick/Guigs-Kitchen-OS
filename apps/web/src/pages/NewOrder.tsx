@@ -1,83 +1,107 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { createOrderSchema, type CreateOrderInput, type OrderView } from '@guigs/shared';
-import { createOrder } from '../api';
+import { createStructuredOrderSchema, type CreateStructuredOrderInput, type Order } from '@guigs/shared';
+import { extraCatalog } from '@guigs/shared/catalog';
+import { ApiError, createStructuredOrder } from '../api';
+import { PizzaBuilder } from '../features/kitchen/components/PizzaBuilder';
+import { createPizzaDraft } from '../features/kitchen/pizzaRecipe';
+import type { PizzaDraft } from '../features/kitchen/types';
+import '../features/kitchen/assembly.css';
 
-type DraftPizza = { key: string; name: string; size: string; ingredients: string; removed: string; added: string; crust: string; notes: string };
-const blankPizza = (): DraftPizza => ({ key: crypto.randomUUID(), name: '', size: 'Grande', ingredients: '', removed: '', added: '', crust: '', notes: '' });
-const splitNames = (value: string) => value.split(',').map(part => part.trim()).filter(Boolean);
+// getRandomValues also works over LAN HTTP, where randomUUID requires HTTPS.
+function requestId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+type DraftExtra = { extraCatalogId: string; quantity: number; notes: string | null };
+type PizzaEntry = { key: string; pizza: PizzaDraft };
+const blankPizza = (): PizzaEntry => ({ key: requestId(), pizza: createPizzaDraft() });
+const pendingStorageKey = 'guigs-counter-v2-pending';
+function readPending(): CreateStructuredOrderInput | null {
+  try {
+    const saved = sessionStorage.getItem(pendingStorageKey);
+    const parsed = saved ? createStructuredOrderSchema.safeParse(JSON.parse(saved)) : null;
+    return parsed?.success ? parsed.data : null;
+  } catch { return null; }
+}
+function storePending(input: CreateStructuredOrderInput | null) {
+  try {
+    if (input) sessionStorage.setItem(pendingStorageKey, JSON.stringify(input));
+    else sessionStorage.removeItem(pendingStorageKey);
+  } catch { /* In-memory retry remains available if browser storage is disabled. */ }
+}
 
 export function NewOrder() {
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [type, setType] = useState<CreateOrderInput['type']>('DELIVERY');
-  const [notes, setNotes] = useState('');
-  const [pizzas, setPizzas] = useState<DraftPizza[]>([blankPizza()]);
+  const [restored] = useState(readPending);
+  const [customerName, setCustomerName] = useState(restored?.customerName ?? '');
+  const [customerPhone, setCustomerPhone] = useState(restored?.customerPhone ?? '');
+  const [fulfillmentType, setFulfillmentType] = useState<CreateStructuredOrderInput['fulfillmentType']>(restored?.fulfillmentType ?? 'DELIVERY');
+  const [channel, setChannel] = useState<CreateStructuredOrderInput['channel']>(restored?.channel ?? 'COUNTER');
+  const [notes, setNotes] = useState(restored?.notes ?? '');
+  const [pizzas, setPizzas] = useState<PizzaEntry[]>(() => restored?.pizzas.map(pizza => ({ key: requestId(), pizza })) ?? [blankPizza()]);
+  const [extras, setExtras] = useState<DraftExtra[]>(restored?.extras ?? []);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [created, setCreated] = useState<OrderView | null>(null);
+  const [pending, setPending] = useState<CreateStructuredOrderInput | null>(restored);
+  const [error, setError] = useState(restored ? 'Há um envio pendente de confirmação nesta aba.' : '');
+  const [created, setCreated] = useState<Order | null>(null);
   const sending = useRef(false);
-
-  function editPizza(key: string, field: keyof Omit<DraftPizza, 'key'>, value: string) {
-    setPizzas(current => current.map(pizza => pizza.key === key ? { ...pizza, [field]: value } : pizza));
-  }
+  const clientRequestId = useRef(restored?.clientRequestId ?? requestId());
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (sending.current) return;
-    sending.current = true;
-    setSaving(true);
-    setError('');
-    const input = {
-      customerName, customerPhone, type, notes,
-      items: pizzas.map(pizza => ({
-        name: pizza.name, size: pizza.size, ingredients: pizza.ingredients, notes: pizza.notes,
-        modifiers: [
-          ...splitNames(pizza.removed).map(name => ({ kind: 'REMOVED' as const, name })),
-          ...splitNames(pizza.added).map(name => ({ kind: 'ADDED' as const, name })),
-          ...(pizza.crust.trim() ? [{ kind: 'CRUST' as const, name: pizza.crust.trim() }] : []),
-        ],
-      })),
-    };
+    sending.current = true; setSaving(true); setError('');
     try {
-      const valid = createOrderSchema.safeParse(input);
-      if (!valid.success) throw new Error('Confira os campos obrigatórios e os limites de texto.');
-      setCreated(await createOrder(valid.data));
+      const valid = createStructuredOrderSchema.safeParse(pending ?? {
+        clientRequestId: clientRequestId.current, customerName, customerPhone, fulfillmentType, channel, notes,
+        pizzas: pizzas.map(entry => entry.pizza), extras,
+      });
+      if (!valid.success) throw new Error('Confira os campos obrigatórios e os limites: até 30 pizzas e 30 unidades de extras.');
+      // Freeze the exact payload until the server confirms it; retries reuse its key.
+      setPending(valid.data);
+      storePending(valid.data);
+      setCreated(await createStructuredOrder(valid.data));
+      setPending(null); storePending(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível criar o pedido.');
-    } finally {
-      sending.current = false;
-      setSaving(false);
-    }
+      if (cause instanceof ApiError && cause.status === 400) {
+        setPending(null); storePending(null); clientRequestId.current = requestId();
+      }
+      setError(cause instanceof Error ? cause.message : 'Não foi possível confirmar o envio.');
+    } finally { sending.current = false; setSaving(false); }
   }
-
   function reset() {
-    setCustomerName(''); setCustomerPhone(''); setType('DELIVERY'); setNotes('');
-    setPizzas([blankPizza()]); setCreated(null); setError('');
+    setCustomerName(''); setCustomerPhone(''); setFulfillmentType('DELIVERY'); setChannel('COUNTER'); setNotes('');
+    setPizzas([blankPizza()]); setExtras([]); setCreated(null); setError(''); setPending(null); storePending(null); clientRequestId.current = requestId();
   }
 
   return <div className="page form-page">
-    <div className="page-head"><div><div className="eyebrow">SIMULADOR · ENTRADA MANUAL</div><h1>Novo pedido de teste</h1><p>Preencha os dados abaixo para enviar um pedido à cozinha.</p></div><Link className="text-link" to="/kitchen">Ver fila da cozinha ↗</Link></div>
-    {created ? <section className="success" role="status"><div className="success-mark">✓</div><div className="eyebrow">PEDIDO CRIADO</div><h2>#{String(created.number).padStart(4, '0')} enviado à cozinha</h2><p>O pedido de {created.customerName} foi salvo e já está na fila de produção.</p><div className="actions"><button className="button primary" type="button" onClick={reset}>Criar outro pedido</button><Link className="button secondary" to="/kitchen">Abrir fila</Link></div></section> :
+    <div className="page-head"><div><div className="eyebrow">BALCÃO · ENTRADA MANUAL</div><h1>Novo pedido de teste</h1><p>Selecione pizzas e extras do catálogo.</p></div><Link className="text-link" to="/orders/new/legacy">Formulário legado ↗</Link></div>
+    {created ? <section className="success" role="status"><div className="success-mark">✓</div><div className="eyebrow">PEDIDO SALVO</div><h2>#{String(created.number).padStart(4, '0')} aguardando montagem</h2><p>Pedido de {created.customerName} salvo com {created.items.filter(item => item.kind === 'PIZZA').length} pizza(s).</p><p>A tela de montagem ainda usa pedidos de demonstração. Este pedido está salvo para a integração da próxima fase.</p><div className="actions"><button className="button primary" type="button" onClick={reset}>Criar outro pedido</button><Link className="button secondary" to="/">Voltar ao painel</Link></div></section> :
       <form onSubmit={event => void submit(event)}>
-        <section className="form-section"><div className="section-heading"><span className="step">01</span><div><h2>Dados do pedido</h2><p>Quem pediu e como será atendido.</p></div></div>
-          <div className="form-grid"><label>Cliente <span>*</span><input required maxLength={120} value={customerName} onChange={event => setCustomerName(event.target.value)} placeholder="Nome do cliente" /></label><label>Telefone <small>opcional</small><input maxLength={30} value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} placeholder="(00) 00000-0000" /></label></div>
-          <fieldset className="type-field"><legend>Tipo de atendimento <span>*</span></legend><div className="type-options"><label className={type === 'DELIVERY' ? 'selected' : ''}><input type="radio" name="type" checked={type === 'DELIVERY'} onChange={() => setType('DELIVERY')} />Delivery</label><label className={type === 'PICKUP' ? 'selected' : ''}><input type="radio" name="type" checked={type === 'PICKUP'} onChange={() => setType('PICKUP')} />Retirada</label></div></fieldset>
-          <label>Observação do pedido <small>opcional</small><textarea maxLength={1000} rows={2} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Instruções gerais" /></label>
-        </section>
-        <section className="form-section"><div className="section-heading"><span className="step">02</span><div><h2>Pizzas</h2><p>Adicione uma ou mais pizzas. Separe ingredientes por vírgula.</p></div></div>
-          <div className="pizza-forms">{pizzas.map((pizza, index) => <div className="pizza-form" key={pizza.key}>
-            <div className="pizza-form-head"><h3>Pizza {index + 1}</h3>{pizzas.length > 1 && <button className="remove-button" type="button" onClick={() => setPizzas(current => current.filter(item => item.key !== pizza.key))}>Remover</button>}</div>
-            <div className="form-grid"><label>Sabor / nome <span>*</span><input required maxLength={120} list="flavors" value={pizza.name} onChange={event => editPizza(pizza.key, 'name', event.target.value)} placeholder="Ex: Portuguesa" /></label><label>Tamanho <span>*</span><select value={pizza.size} onChange={event => editPizza(pizza.key, 'size', event.target.value)}><option>Pequena</option><option>Média</option><option>Grande</option></select></label></div>
-            <label>Ingredientes / descrição <small>opcional</small><input maxLength={1000} value={pizza.ingredients} onChange={event => editPizza(pizza.key, 'ingredients', event.target.value)} placeholder="Ex: mussarela, ovo, presunto" /></label>
-            <div className="form-grid"><label>Remover ingredientes <small>opcional</small><input value={pizza.removed} onChange={event => editPizza(pizza.key, 'removed', event.target.value)} placeholder="Ex: cebola, azeitona" /></label><label>Adicionais <small>opcional</small><input value={pizza.added} onChange={event => editPizza(pizza.key, 'added', event.target.value)} placeholder="Ex: bacon, queijo" /></label></div>
-            <div className="form-grid"><label>Borda <small>opcional</small><input maxLength={120} value={pizza.crust} onChange={event => editPizza(pizza.key, 'crust', event.target.value)} placeholder="Ex: Catupiry" /></label><label>Observação da pizza <small>opcional</small><input maxLength={1000} value={pizza.notes} onChange={event => editPizza(pizza.key, 'notes', event.target.value)} placeholder="Ex: cortar em 8 pedaços" /></label></div>
-          </div>)}</div>
-          <datalist id="flavors"><option value="Calabresa" /><option value="Portuguesa" /><option value="Mussarela" /><option value="Frango com Catupiry" /></datalist>
-          <button className="add-button" type="button" onClick={() => setPizzas(current => [...current, blankPizza()])}>+ Adicionar pizza</button>
-        </section>
-        {error && <div className="alert" role="alert">{error}</div>}
-        <div className="submit-row"><span>Este pedido será enviado imediatamente à fila da cozinha.</span><button className="button primary" type="submit" disabled={saving}>{saving ? 'Enviando...' : 'Criar pedido →'}</button></div>
+        <fieldset disabled={saving || pending !== null} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          <section className="form-section"><div className="section-heading"><span className="step">01</span><div><h2>Dados do pedido</h2><p>Quem pediu e como será atendido.</p></div></div>
+            <div className="form-grid"><label>Cliente <span>*</span><input required maxLength={120} value={customerName} onChange={event => setCustomerName(event.target.value)} placeholder="Nome do cliente" /></label><label>Telefone <small>opcional</small><input maxLength={30} value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></label></div>
+            <div className="form-grid"><label>Tipo de atendimento<select value={fulfillmentType} onChange={event => setFulfillmentType(event.target.value as typeof fulfillmentType)}><option value="DELIVERY">Delivery</option><option value="PICKUP">Retirada</option></select></label><label>Canal<select value={channel} onChange={event => setChannel(event.target.value as typeof channel)}><option value="COUNTER">Balcão</option><option value="WHATSAPP">WhatsApp (entrada manual)</option><option value="IFOOD">iFood (entrada manual)</option><option value="OTHER">Outro</option></select></label></div>
+            <label>Observação do pedido<textarea maxLength={1000} rows={2} value={notes} onChange={event => setNotes(event.target.value)} /></label>
+          </section>
+          <section className="form-section"><div className="section-heading"><span className="step">02</span><div><h2>Pizzas</h2><p>Até 30 pizzas, com modificadores independentes por metade.</p></div></div>
+            <div className="pizza-forms">{pizzas.map((entry, index) => <div className="pizza-form" key={entry.key}><div className="pizza-form-head"><h3>Pizza {index + 1}</h3>{pizzas.length > 1 && <button className="remove-button" type="button" onClick={() => setPizzas(current => current.filter(item => item.key !== entry.key))}>Remover pizza {index + 1}</button>}</div><PizzaBuilder pizza={entry.pizza} index={index} onChange={pizza => setPizzas(current => current.map(item => item.key === entry.key ? { ...item, pizza } : item))} /></div>)}</div>
+            <button className="add-button" type="button" disabled={pizzas.length >= 30} onClick={() => setPizzas(current => [...current, blankPizza()])}>+ Adicionar pizza</button>
+          </section>
+          <section className="form-section"><div className="section-heading"><span className="step">03</span><div><h2>Extras</h2><p>Selecione itens e quantidades. Limite de 30 unidades.</p></div></div>
+            {extraCatalog.map(entry => {
+              const selected = extras.find(extra => extra.extraCatalogId === entry.id);
+              return <div className="form-grid" key={entry.id}><label>{entry.name}<input aria-label={`Quantidade — ${entry.name}`} type="number" min={0} max={30} value={selected?.quantity ?? 0} onChange={event => {
+                const quantity = Number(event.target.value);
+                setExtras(current => [...current.filter(extra => extra.extraCatalogId !== entry.id), ...(quantity > 0 ? [{ extraCatalogId: entry.id, quantity, notes: selected?.notes ?? null }] : [])]);
+              }} /></label>{selected && <label>Observação de {entry.name}<input maxLength={1000} value={selected.notes ?? ''} onChange={event => setExtras(current => current.map(extra => extra.extraCatalogId === entry.id ? { ...extra, notes: event.target.value || null } : extra))} /></label>}</div>;
+            })}
+          </section>
+        </fieldset>
+        {error && <div className="alert" role="alert">{error}{pending && <p>O envio ainda não foi confirmado. Tente novamente para recuperar o mesmo pedido; os dados estão preservados.</p>}</div>}
+        <div className="submit-row"><span>As pizzas serão salvas aguardando montagem.</span><button className="button primary" type="submit" disabled={saving}>{saving ? 'Enviando...' : pending ? 'Confirmar envio novamente' : 'Criar pedido →'}</button></div>
       </form>}
   </div>;
 }

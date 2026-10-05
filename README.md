@@ -158,6 +158,14 @@ O protótipo distingue `WAITING_ASSEMBLY`, `ASSEMBLING` e `WAITING_OVEN`, com pa
 
 O Prisma acrescenta `Order.schemaVersion` (default 1) e tabelas `PizzaItem`, `PizzaHalf`, `PizzaIngredientModifier`, `ExtraItem` e `PizzaProductionHistory`. A migration `20261005180000_structured_kitchen` é aditiva, sem conversão de pedidos antigos. Preparar com API parada: `npm run setup` (gera client/aplica migrations/seed idempotente). Faça backup SQLite consistente antes de atualizar um banco que contém dados da loja; o backup local da execução está em `apps/api/prisma/backup-phase3a-before-20261005T174023Z.db`, ignorado pelo Git.
 
-Os endpoints existentes continuam usando v1. Não existe criação HTTP v2 ainda; a leitura interna compatível está em `apps/api/src/kitchen-data.ts`. Pedidos v2 não são expostos pelas rotas legacy nem avançados pela transição do pedido inteiro. A Fase 3B implementará criação estruturada no balcão/API. O contrato e as tabelas novos não significam forno, finalização, locks ou realtime por pizza implementados.
+Os endpoints existentes continuam usando v1. Na entrega 3A, a leitura compatível foi preparada em `apps/api/src/kitchen-data.ts`; a criação HTTP v2 foi acrescentada na Fase 3B abaixo. Pedidos v2 não são expostos pelas rotas legacy nem avançados pela transição do pedido inteiro. O contrato e as tabelas novos não significam forno, finalização, locks ou realtime por pizza implementados.
 
 `npm test` inclui testes novos de domínio, snapshot, agregação, migração preservando legado e round-trip Prisma. Estratégia de snapshot, constraints, convivência/rollback e limites estão na seção 10 de [KITCHEN_DATA_MIGRATION.md](docs/KITCHEN_DATA_MIGRATION.md).
+
+## Fase 3B — entrada estruturada persistente
+
+`/orders/new` cria pedidos v2 por `POST /orders/v2`, com pizzas/metades/modificadores/borda por ID do catálogo compartilhado, extras estruturados, snapshots gerados no servidor, estados e históricos iniciais. Contador e gravações são transacionais; `clientRequestId` protege reenvios/duplo clique. O formulário preserva envios incertos na sessão da aba, inclusive após refresh. O formulário v1 continua em `/orders/new/legacy`.
+
+Leitura v2 explícita: `GET /orders/v2` e `GET /orders/v2/:id`. A montagem continua em demonstração e a fila/painel legacy mostra apenas v1. Extras possuem lista inicial interna a confirmar com a operação. API parada + backup antes de `npm run db:generate` e `npm run db:migrate`; nova migration adiciona somente idempotência. Detalhes, payload, arquivos, limites e sequência da Fase 3C: [PHASE_3B_STRUCTURED_CREATION.md](docs/PHASE_3B_STRUCTURED_CREATION.md).
+
+Validação: lint, typecheck, 55 testes da API, 16 da montagem, build e navegador da montagem. `npm run test:structured:browser` verifica v2/replay após perda de resposta/refresh e o fluxo v1 com duas abas, usando API compilada e banco descartável. Requer Vite em 5173 e porta 3333 livre; não roda contra o banco da loja.

@@ -18,7 +18,7 @@ try {
   await kitchenA.getByText('Realtime conectado').waitFor();
 
   const form = await context.newPage();
-  await form.goto(`${origin}/orders/new`);
+  await form.goto(`${origin}/orders/new/legacy`);
   await form.getByLabel('Cliente *').fill(customer);
   await form.getByLabel('Sabor / nome *').fill('Portuguesa');
   await form.getByLabel('Remover ingredientes opcional').fill('cebola');

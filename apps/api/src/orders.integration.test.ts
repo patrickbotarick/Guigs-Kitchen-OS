@@ -23,6 +23,7 @@ beforeAll(async () => {
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261001120000_init/migration.sql'));
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261001150000_order_history/migration.sql'));
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261005180000_structured_kitchen/migration.sql'));
+  await applySql(resolve(process.cwd(), 'prisma/migrations/20261005190000_structured_order_creation/migration.sql'));
 });
 
 afterAll(async () => {
