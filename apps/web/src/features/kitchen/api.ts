@@ -1,5 +1,6 @@
 import { readOrderData, pizzaCommandResultSchema, type Order, type PizzaCommandInput } from '@guigs/shared';
 import type { AssemblyOrder } from './types';
+import { invalidateSession, sessionHeaders, type SessionCredentials } from './operatorSession';
 
 const mountingStates = ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'];
 export class AssemblyApiError extends Error {
@@ -37,10 +38,13 @@ export function createAssemblyApi(baseUrl: string, fetcher: typeof fetch = fetch
       if (read.legacy) throw new Error('Pedido v1 não aceita comandos de montagem v2.');
       return read.order;
     },
-    async command(orderId: string, pizzaId: string, input: PizzaCommandInput, signal?: AbortSignal) {
-      const response = await fetcher(`${baseUrl}/orders/v2/${encodeURIComponent(orderId)}/pizzas/${encodeURIComponent(pizzaId)}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal });
+    async command(orderId: string, pizzaId: string, input: PizzaCommandInput, signal?: AbortSignal, credentials?: SessionCredentials) {
+      const response = await fetcher(`${baseUrl}/orders/v2/${encodeURIComponent(orderId)}/pizzas/${encodeURIComponent(pizzaId)}/commands`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(credentials ? sessionHeaders(credentials) : {}) }, body: JSON.stringify(input), signal });
       const data: unknown = await response.json();
-      if (!response.ok) throw new AssemblyApiError(typeof data === 'object' && data !== null && 'error' in data ? String(data.error) : `HTTP ${response.status}`, response.status);
+      if (!response.ok) {
+        if (response.status === 401 && credentials) invalidateSession(credentials.token);
+        throw new AssemblyApiError(typeof data === 'object' && data !== null && 'error' in data ? String(data.error) : `HTTP ${response.status}`, response.status);
+      }
       return pizzaCommandResultSchema.parse(data);
     },
     async list(signal?: AbortSignal): Promise<AssemblyOrder[]> {

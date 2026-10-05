@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "operator:configure": "tsx src/admin/operator-config.ts",
+    "workstation:configure": "tsx src/admin/workstation-config.ts"
   },
   "dependencies": {
     "@guigs/shared": "0.1.0",

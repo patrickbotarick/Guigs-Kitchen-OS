@@ -10,6 +10,8 @@
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
     "db:seed": "npm run seed -w @guigs/api",
+    "operator:configure": "npm run operator:configure -w @guigs/api",
+    "workstation:configure": "npm run workstation:configure -w @guigs/api",
     "db:prepare": "npm run db:ensure && npm run db:generate && npm run db:migrate && npm run db:seed",
     "setup": "node scripts/ensure-env.mjs && npm run db:prepare && node scripts/setup-state.mjs mark",
     "db:ensure": "node scripts/ensure-db.mjs",

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 import { withIsolatedApi } from './helpers/isolated-api.mjs';
+import { loginPin } from './helpers/operator-fixtures.mjs';
 
 const executablePath = [process.env.BROWSER_PATH, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'].filter(Boolean).find(existsSync);
 assert.ok(executablePath, 'Edge/Chrome necessário');
@@ -17,9 +18,13 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
       // This regression intentionally keeps B stale to exercise HTTP 409. Real sockets are tested separately.
       await context.route('**:3333/socket.io/**', route => route.abort());
       context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
+      await context.route('**:3333/operators/session', async route => {
+        const request = route.request(), response = await context.request.fetch(`${apiOrigin}/operators/session`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
+        await route.fulfill({ response });
+      });
       await context.route('**:3333/orders/v2**', async route => {
         const request = route.request(), path = new URL(request.url()).pathname;
-        const response = await context.request.fetch(`${apiOrigin}${path}`, { method: request.method(), headers: { 'Content-Type': 'application/json' }, ...(request.postData() ? { data: request.postData() } : {}) });
+        const response = await context.request.fetch(`${apiOrigin}${path}`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
         if (path.endsWith('/commands')) {
           const input = request.postDataJSON(); posts.push({ device, input, status: response.status() });
           if (device === 'A' && dropStart && input.command === 'START_ASSEMBLY') {
@@ -39,6 +44,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     const pageA = await a.newPage(), pageB = await b.newPage();
     for (const page of [pageA, pageB]) {
       await page.goto('http://127.0.0.1:5173/kitchen/assembly');
+      await loginPin(page);
       await page.getByRole('heading', { name: `Pedido #${created.number}`, exact: true }).waitFor();
     }
     await pageA.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
@@ -84,4 +90,4 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     assert.deepEqual(errors, []);
     console.info('Comandos Assembly aprovados: balcão → SQLite → iniciar/pausar/retomar/enviar; refresh preserva estado; timestamps/histórico/agregação; resposta perdida com refresh/replay sem duplicação; segundo tablet recebe 409 e recarrega. Banco descartável.');
   } finally { await browser.close(); }
-});
+}, { operatorFixtures: true });

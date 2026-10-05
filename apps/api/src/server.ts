@@ -8,6 +8,7 @@ import { createApp } from './app.js';
 import { OrderService } from './orders.js';
 import { StructuredOrderService } from './structured-orders.js';
 import { PizzaCommandService } from './pizza-commands.js';
+import { OperatorSessionService } from './operator-sessions.js';
 
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
@@ -24,7 +25,7 @@ const allowedOrigin = (origin: string | undefined, callback: (error: Error | nul
 };
 const prisma = new PrismaClient();
 const orders = new OrderService(prisma);
-const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload));
+const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload), new OperatorSessionService(prisma, Number(process.env.OPERATOR_SESSION_HOURS || 12) * 60 * 60 * 1000));
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: allowedOrigin } });
 

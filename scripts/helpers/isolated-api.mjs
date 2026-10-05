@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { seedOperatorFixtures } from './operator-fixtures.mjs';
 
-export async function withIsolatedApi(port, run, { webOrigin } = {}) {
+export async function withIsolatedApi(port, run, { webOrigin, operatorFixtures = false } = {}) {
   const root = resolve('.');
   const dbPath = resolve(root, `apps/api/prisma/test-assembly-read-${randomUUID()}.db`);
   const databaseUrl = `file:${dbPath.replaceAll('\\', '/')}`;
@@ -30,6 +31,7 @@ export async function withIsolatedApi(port, run, { webOrigin } = {}) {
     for (const directory of readdirSync(migrations).filter(name => /^\d/.test(name)).sort()) {
       for (const sql of readFileSync(resolve(migrations, directory, 'migration.sql'), 'utf8').split(';').map(part => part.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(sql);
     }
+    if (operatorFixtures) await seedOperatorFixtures(prisma);
     await prisma.$disconnect();
     await start();
     await run({ prisma, apiOrigin: `http://127.0.0.1:${port}`, stop, start, restart: async () => { await stop(); await start(); } });

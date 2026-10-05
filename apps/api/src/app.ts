@@ -9,6 +9,8 @@ import { pizzaCommandSchema } from '@guigs/shared';
 import { PizzaCommandConflictError, PizzaCommandNotFoundError, type PizzaCommandService } from './pizza-commands.js';
 import { type KitchenNotification } from '@guigs/shared';
 import { commandNotifications } from './kitchen-events.js';
+import { operatorLoginSchema } from '@guigs/shared';
+import { OperationalAuthError, PinLoginError, LoginRateLimitError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -18,7 +20,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -27,10 +29,22 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
+  if (operators) {
+    app.post('/operators/session', async (req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').status(201).json(await operators.signIn(operatorLoginSchema.parse(req.body), req.ip ?? 'local')); } catch (error) { next(error); }
+    });
+    app.get('/operators/session', async (req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').json(await operators.current(credentials(req))); } catch (error) { next(error); }
+    });
+    app.delete('/operators/session', async (req, res, next) => {
+      try { await operators.end(credentials(req)); res.set('Cache-Control', 'no-store').status(204).end(); } catch (error) { next(error); }
+    });
+  }
   if (commands) app.post('/orders/v2/:orderId/pizzas/:pizzaId/commands', async (req, res, next) => {
     try {
       const orderId = z.string().cuid().parse(req.params.orderId), pizzaId = z.string().cuid().parse(req.params.pizzaId);
-      const result = await commands.execute(orderId, pizzaId, pizzaCommandSchema.parse(req.body));
+      const result = await commands.execute(orderId, pizzaId, pizzaCommandSchema.parse(req.body), credentials(req));
       // execute resolves after COMMIT; replay and every failed/rolled-back command emit nothing.
       for (const notification of commandNotifications(result)) {
         try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação Kitchen após commit:', error); }
@@ -100,6 +114,8 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
 
   const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     void _next;
+    if (error instanceof OperationalAuthError || error instanceof PinLoginError) { res.status(401).json({ error: error.message }); return; }
+    if (error instanceof LoginRateLimitError) { res.set('Retry-After', String(error.retryAfter)).status(429).json({ error: error.message }); return; }
     if (error instanceof ZodError) {
       res.status(400).json({ error: 'Payload inválido', issues: error.flatten() });
       return;

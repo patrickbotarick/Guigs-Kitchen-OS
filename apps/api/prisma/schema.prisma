@@ -219,11 +219,16 @@ model PizzaProductionHistory {
   actorType ActorType
   actorId String?
   workstationId String?
+  operatorId String?
+  operator Operator? @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  operatorSessionId String?
+  operatorSession OperatorSession? @relation(fields: [operatorSessionId], references: [id], onDelete: Restrict)
   commandId String @unique
   itemVersion Int
   reason String?
 
   @@index([pizzaId, changedAt])
+  @@index([operatorId, changedAt])
 }
 
 model PizzaCommandReceipt {
@@ -235,6 +240,47 @@ model PizzaCommandReceipt {
   pizza PizzaItem @relation(fields: [pizzaId], references: [id], onDelete: Restrict)
   responseSnapshot Json
   createdAt DateTime @default(now())
+  operatorSessionId String?
+  operatorSession OperatorSession? @relation(fields: [operatorSessionId], references: [id], onDelete: Restrict)
+}
+
+model Operator {
+  id String @id @default(cuid())
+  name String @unique
+  pinHash String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions OperatorSession[]
+  history PizzaProductionHistory[]
+}
+
+model Workstation {
+  id String @id @default(cuid())
+  name String
+  deviceKey String @unique
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions OperatorSession[]
+}
+
+model OperatorSession {
+  id String @id @default(cuid())
+  operatorId String
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  workstationId String
+  workstation Workstation @relation(fields: [workstationId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+  expiresAt DateTime
+  active Boolean @default(true)
+  history PizzaProductionHistory[]
+  receipts PizzaCommandReceipt[]
+
+  @@index([workstationId, active])
+  @@index([operatorId, startedAt])
 }
 
 enum ActorType {

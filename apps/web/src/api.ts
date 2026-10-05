@@ -4,7 +4,7 @@ export class ApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
 }
 
-export const apiUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3333`;
+export const apiUrl = import.meta.env.VITE_API_URL || `http://${typeof window === 'undefined' ? 'localhost' : window.location.hostname}:3333`;
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const body: unknown = await response.json();

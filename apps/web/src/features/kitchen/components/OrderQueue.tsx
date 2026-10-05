@@ -3,6 +3,7 @@ import { pizzasOf } from '../assembly';
 import type { AssemblyOrder, OrderChannel, QueueSortDirection } from '../types';
 import { AssemblyIcon } from './AssemblyIcons';
 import { useAssembly } from '../useAssembly';
+import { useState } from 'react';
 
 export const channelLabels: Record<OrderChannel, string> = { IFOOD: 'iFood', WHATSAPP: 'WhatsApp', PICKUP: 'Retirada', COUNTER: 'Balcão', OTHER: 'Outro' };
 export function ChannelBadge({ channel }: { channel: OrderChannel }) {
@@ -25,11 +26,18 @@ function OrderQueueCard({ order, selected, now, onSelect }: { order: AssemblyOrd
   </button>;
 }
 export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, onToggleSort, mode, loading, refreshing, error, reload }: { orders: AssemblyOrder[]; selectedId: string | null; now: number; onSelect: (id: string) => void; sortDirection: QueueSortDirection; onToggleSort: () => void; mode: 'API' | 'DEMO'; loading: boolean; refreshing: boolean; error: string; reload: () => void }) {
-  const { commandBusy, pendingCommand, commandNotice, retryCommand, connection } = useAssembly();
+  const { commandBusy, pendingCommand, commandNotice, retryCommand, connection, operatorSession, sessionBusy, sessionError, endSession } = useAssembly();
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const inProgress = orders.some(order => order.items.some(pizza => pizza.status === 'ASSEMBLING'));
   return <aside className="ka-queue" aria-labelledby="ka-queue-title">
     <div className="ka-queue-heading"><h2 id="ka-queue-title">Fila de Pedidos</h2><button className="ka-sort" type="button" aria-label={`Ordenar fila: ${sortDirection === 'ASC' ? 'mais antigo primeiro' : 'mais recente primeiro'}`} aria-pressed={sortDirection === 'DESC'} onClick={onToggleSort}><AssemblyIcon name="sort" /></button></div>
     <p className="ka-sort-label">{sortDirection === 'ASC' ? 'Mais antigo primeiro' : 'Mais recente primeiro'}</p>
     {mode === 'API' && <span className={`ka-connection ka-connection-${connection.toLowerCase()}`} role="status" aria-label="Conexão Assembly">{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[connection]}</span>}
+    {operatorSession && <div className="ka-operator-identity"><span aria-label="Identidade operacional">{operatorSession.operatorName} • {operatorSession.workstationName}</span>
+      <button type="button" disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => { if (inProgress) setConfirmSwitch(true); else void endSession(); }}>Trocar montador</button>
+      {confirmSwitch && <div role="alert"><p>Há pizzas em montagem. A troca preserva o histórico e não reatribui pedidos.</p><button type="button" disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => void endSession()}>Confirmar troca</button><button type="button" onClick={() => setConfirmSwitch(false)}>Continuar montando</button></div>}
+      {sessionError && <p role="alert">{sessionError}</p>}
+    </div>}
     {loading && <p role="status">Carregando pedidos...</p>}
     {error && <p className="ka-read-error" role="alert">{error}</p>}
     {commandNotice && <p role="status">{commandNotice}</p>}

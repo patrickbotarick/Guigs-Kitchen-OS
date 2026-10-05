@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright-core';
 import { withIsolatedApi } from './helpers/isolated-api.mjs';
+import { loginPin } from './helpers/operator-fixtures.mjs';
 
 const executablePath = [process.env.BROWSER_PATH, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'].filter(Boolean).find(existsSync);
 assert.ok(executablePath, 'Edge/Chrome necessário');
@@ -12,6 +13,10 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     // HTTP-only snapshot/read regression; avoid connecting to the store's unrelated Socket.IO server.
     await context.route('**:3333/socket.io/**', route => route.abort());
+    await context.route('**:3333/operators/session', async route => {
+      const request = route.request(), response = await context.request.fetch(`${apiOrigin}/operators/session`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
+      await route.fulfill({ response });
+    });
     let fail = false, slow = true, release;
     const gate = new Promise(done => { release = done; });
     const writes = [], errors = [];
@@ -28,6 +33,7 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     const assembly = await context.newPage();
     assembly.on('pageerror', error => errors.push(error.message));
     await assembly.goto('http://127.0.0.1:5173/kitchen/assembly');
+    await loginPin(assembly);
     await assembly.getByRole('heading', { name: 'Carregando pedidos...', exact: true }).waitFor();
     slow = false; release();
     await assembly.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
@@ -108,4 +114,4 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     assert.deepEqual(errors, []);
     console.info('Assembly persistido aprovado: balcão → SQLite → GET v2 → fila real; 3 pizzas/Broto/metades/borda/modificadores/extras, snapshots históricos, leitura sem ações neste teste, loading/vazio/erro com preservação, ordenação e 30 pizzas. Banco descartável, API da loja preservada.');
   } finally { await browser.close(); }
-});
+}, { operatorFixtures: true });

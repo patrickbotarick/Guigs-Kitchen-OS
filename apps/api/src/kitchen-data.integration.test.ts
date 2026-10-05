@@ -31,6 +31,7 @@ beforeAll(async () => {
   await apply(migration);
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261005190000_structured_order_creation/migration.sql'), 'utf8'));
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261005200000_pizza_commands/migration.sql'), 'utf8'));
+  await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261005220000_operator_identity/migration.sql'), 'utf8'));
 });
 afterAll(async () => {
   await prisma.$disconnect();

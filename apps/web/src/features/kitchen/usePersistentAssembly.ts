@@ -7,15 +7,18 @@ import { clientId } from '../../utils/clientId';
 import type { PizzaAction } from './types';
 import { io } from 'socket.io-client';
 import { AssemblyReconciliation, type AssemblyConnection } from './realtime';
+import type { SessionCredentials } from './operatorSession';
 
-type PendingCommand = { orderId: string; pizzaId: string; input: PizzaCommandInput };
+type PendingCommand = { orderId: string; pizzaId: string; input: PizzaCommandInput; operatorSessionId: string };
 const storageKey = 'guigs-assembly-pending-command';
-function readPending(): PendingCommand | null {
+function readPending(operatorSessionId: string): PendingCommand | null {
   try {
     const value: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
     if (typeof value !== 'object' || value === null || !('orderId' in value) || typeof value.orderId !== 'string' || !('pizzaId' in value) || typeof value.pizzaId !== 'string' || !('input' in value)) return null;
     const input = pizzaCommandSchema.safeParse(value.input);
-    return input.success ? { orderId: value.orderId, pizzaId: value.pizzaId, input: input.data } : null;
+    // Never attribute an uncertain command from a prior session to the new operator.
+    if (!('operatorSessionId' in value) || value.operatorSessionId !== operatorSessionId) { sessionStorage.removeItem(storageKey); return null; }
+    return input.success ? { orderId: value.orderId, pizzaId: value.pizzaId, input: input.data, operatorSessionId } : null;
   } catch { return null; }
 }
 function storePending(value: PendingCommand | null) {
@@ -23,7 +26,7 @@ function storePending(value: PendingCommand | null) {
 }
 
 const api = createAssemblyApi(apiUrl);
-export function usePersistentAssembly() {
+export function usePersistentAssembly(credentials: SessionCredentials, operatorSessionId: string) {
   const [state, reduce] = useReducer(assemblyReducer, { orders: [], selectedOrderId: null, selectedPizzaIds: {}, handoffs: [], nextNumber: 0, notice: '', sortDirection: 'ASC' } satisfies AssemblyState);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,11 +54,15 @@ export function usePersistentAssembly() {
     window.addEventListener('online', online); window.addEventListener('offline', offline);
     return () => { socket.disconnect(); clearTimeout(refreshTimer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
   }, []);
-  const [pending, setPending] = useState(readPending);
+  const [orphanedCommand] = useState(() => {
+    try { const value: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null'); return typeof value === 'object' && value !== null && (!('operatorSessionId' in value) || value.operatorSessionId !== operatorSessionId); }
+    catch { return false; }
+  });
+  const [pending, setPending] = useState(() => readPending(operatorSessionId));
   const pendingRef = useRef(pending);
   const [commandBusy, setCommandBusy] = useState(false);
   const sending = useRef(false);
-  const [commandNotice, setCommandNotice] = useState(pending ? 'Há um comando pendente de confirmação nesta aba.' : '');
+  const [commandNotice, setCommandNotice] = useState(orphanedCommand ? 'Havia um comando sem confirmação de outra sessão. Confira o estado carregado antes de continuar.' : pending ? 'Há um comando pendente de confirmação nesta aba.' : '');
   const [commandError, setCommandError] = useState('');
   const alive = useRef(true);
   const commandController = useRef<AbortController | null>(null);
@@ -100,7 +107,7 @@ export function usePersistentAssembly() {
     const controller = new AbortController(); commandController.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const result = await api.command(value.orderId, value.pizzaId, value.input, controller.signal);
+      const result = await api.command(value.orderId, value.pizzaId, value.input, controller.signal, credentials);
       // A receipt returns the original response. Read current data before applying a replay.
       const confirmed = result.replayed ? await api.readOrder(value.orderId, controller.signal) : result.order;
       if (alive.current) {
@@ -116,7 +123,7 @@ export function usePersistentAssembly() {
           const current = await api.readOrder(value.orderId, controller.signal);
           if (alive.current) { loaded.current = true; setLoading(false); reduce({ type: 'SYNC_ORDERS', orders: reconciliation.current.confirm(current) }); setCommandNotice('Esta pizza foi atualizada ou o comando está em conflito. Os dados foram recarregados.'); }
         } catch { if (alive.current) setCommandError('Conflito confirmado, mas não foi possível recarregar o pedido. Use Atualizar.'); }
-      } else if (cause instanceof AssemblyApiError && [400, 404].includes(cause.status)) {
+      } else if (cause instanceof AssemblyApiError && [400, 401, 404].includes(cause.status)) {
         clearPending(); if (alive.current) setCommandError(cause.message);
       } else if (alive.current) setCommandError('O comando ainda não foi confirmado. Use Confirmar comando novamente para recuperar o mesmo envio.');
     } finally {
@@ -129,7 +136,7 @@ export function usePersistentAssembly() {
     const pizza = state.orders.find(order => order.id === orderId)?.items.find(pizza => pizza.id === pizzaId);
     if (!pizza || pizza.productionVersion === undefined) return;
     const command = { START: 'START_ASSEMBLY', PAUSE: 'PAUSE_ASSEMBLY', RESUME: 'RESUME_ASSEMBLY', SEND_TO_OVEN: 'SEND_TO_OVEN' } as const;
-    void send({ orderId, pizzaId, input: { command: command[action], expectedState: pizza.status, expectedVersion: pizza.productionVersion, clientCommandId: clientId() } });
+    void send({ orderId, pizzaId, operatorSessionId, input: { command: command[action], expectedState: pizza.status, expectedVersion: pizza.productionVersion, clientCommandId: clientId() } });
   }
   return { state, dispatch, loading, refreshing, error: [error, commandError].filter(Boolean).join(' '), reload: () => setReloadVersion(version => version + 1), performCommand,
     connection, commandBusy, pendingCommand: pending !== null, commandNotice, retryCommand: () => { if (pendingRef.current) void send(pendingRef.current); } };

@@ -356,4 +356,12 @@ A API foi retomada após a migration 3A e a leitura HTTP foi verificada sem cria
 
 ## 11. Fase 3B implementada
 
-A criação estruturada, catálogo compartilhado, idempotência transacional, snapshot/histórico inicial, formulário v2 e leitura HTTP explícita foram implementados. Estado e payload atuais, nova migration aditiva, convivência v1/v2, validações, riscos e sequência da 3C estão em [PHASE_3B_STRUCTURED_CREATION.md](PHASE_3B_STRUCTURED_CREATION.md). A montagem continua em memória; nenhuma transição individual persistente, lock ou realtime por pizza foi implementado.
+A criação estruturada, catálogo compartilhado, idempotência transacional, snapshot/histórico inicial, formulário v2 e leitura HTTP explícita foram implementados. Estado e payload dessa etapa, nova migration aditiva, convivência v1/v2, validações e riscos estão em [PHASE_3B_STRUCTURED_CREATION.md](PHASE_3B_STRUCTURED_CREATION.md). A montagem em memória descrita nesse documento corresponde ao fechamento original da 3B.
+
+## 12. Roadmap técnico atualizado após 3D.2A
+
+- Concluído: criação v2/catalog/snapshot e compatibilidade v1 (3B); leitura persistida Assembly (3C.1); comandos individuais transacionais/CAS/idempotência/histórico (3C.2); realtime versionado e recuperação (3D.1).
+- Atual: identidade operacional/terminal/sessão (3D.2A), comandos autenticados e vínculos de autoria históricos. Modelo, migration, configuração e limites em [PHASE_3D2A_OPERATOR_IDENTITY.md](PHASE_3D2A_OPERATOR_IDENTITY.md). Sem conversão retroativa de SYSTEM ou Worker legado.
+- Próximo: 3D.2B define responsabilidade/claim explícitos, validade e liberação, com auditoria/versões. Campos futuros possíveis apenas documentados: assignedOperatorId, assignedWorkstationId, assignedAt, claimExpiresAt e assignmentVersion. Não são estados de produção nem estão ativados.
+- Depois: distribuição automática só após claims e disponibilidade confiáveis, com carga por pizzas/complexidade e critério auditável; validar múltiplos tablets, quedas, concorrência e carga real.
+- Fases próprias posteriores: forno operacional e finalização/embalagem/despacho; estoque/ficha técnica e métricas/administração. Não foram iniciadas nesta entrega.

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { assemblyCommandTransitions, canTransitionPizza, deriveOrderProductionState, isLogisticsOrderStatus, pizzaCommandSchema, pizzaCommandResultSchema, type PizzaCommandInput, type PizzaCommandResult } from '@guigs/shared';
 import { loadCompatibleOrder } from './kitchen-data.js';
+import { OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
 
 export class PizzaCommandConflictError extends Error {}
 export class PizzaCommandNotFoundError extends Error {}
@@ -9,10 +10,12 @@ class RetryAggregationError extends Error {}
 export class PizzaCommandService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async execute(orderId: string, pizzaId: string, payload: PizzaCommandInput): Promise<PizzaCommandResult> {
+  async execute(orderId: string, pizzaId: string, payload: PizzaCommandInput, credentials?: SessionCredentials): Promise<PizzaCommandResult> {
+    const sessions = new OperatorSessionService(this.prisma);
+    const actor = await sessions.validate(credentials);
     const input = pizzaCommandSchema.parse(payload);
     const { clientCommandId, ...intent } = input;
-    const hash = createHash('sha256').update(JSON.stringify({ orderId, pizzaId, ...intent })).digest('hex');
+    const hash = createHash('sha256').update(JSON.stringify({ orderId, pizzaId, ...intent, operatorSessionId: actor.sessionId, operatorId: actor.operatorId, workstationId: actor.workstationId })).digest('hex');
     const replay = (saved: { payloadHash: string; responseSnapshot: Prisma.JsonValue }) => {
       if (saved.payloadHash !== hash) throw new PizzaCommandConflictError('Identificador de comando já utilizado com outro conteúdo.');
       return pizzaCommandResultSchema.parse({ ...(saved.responseSnapshot as object), replayed: true });
@@ -22,6 +25,7 @@ export class PizzaCommandService {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         return await this.prisma.$transaction(async tx => {
+          await sessions.validate(credentials, tx); // Revocation/expiry must also be checked inside the command transaction.
           const previous = await tx.pizzaCommandReceipt.findUnique({ where: { clientCommandId } });
           if (previous) return replay(previous);
           const order = await tx.order.findUnique({ where: { id: orderId } });
@@ -40,18 +44,19 @@ export class PizzaCommandService {
           } });
           if (changed.count !== 1) throw new PizzaCommandConflictError('Esta pizza foi atualizada em outro dispositivo.');
           await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: input.command, fromState: pizza.state, toState: transition.to, changedAt: now,
-            actorType: 'SYSTEM', commandId: clientCommandId, itemVersion: pizza.version + 1, reason: 'Comando de montagem via Assembly' } });
+            actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId,
+            commandId: clientCommandId, itemVersion: pizza.version + 1, reason: 'Comando de montagem via Assembly' } });
           const pizzas = await tx.pizzaItem.findMany({ where: { orderId }, select: { state: true } });
           const extras = await tx.extraItem.findMany({ where: { orderId }, select: { state: true, quantity: true, checkedQuantity: true } });
           const status = deriveOrderProductionState({ pizzas: pizzas.map(pizza => pizza.state), extras, packingConfirmed: Boolean(order.packingFinishedAt && order.packingFinishedBy) });
           const changedOrder = await tx.order.updateMany({ where: { id: orderId, version: order.version }, data: { status, version: { increment: 1 },
             ...(!order.productionStartedAt ? { productionStartedAt: now } : {}) } });
           if (changedOrder.count !== 1) throw new RetryAggregationError();
-          if (status !== order.status) await tx.orderStatusHistory.create({ data: { orderId, fromStatus: order.status, toStatus: status, changedAt: now, actorType: 'SYSTEM', metadata: JSON.stringify({ command: input.command, clientCommandId, pizzaId }) } });
+          if (status !== order.status) await tx.orderStatusHistory.create({ data: { orderId, fromStatus: order.status, toStatus: status, changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, metadata: JSON.stringify({ command: input.command, clientCommandId, pizzaId, operatorSessionId: actor.sessionId, workstationId: actor.workstationId }) } });
           const read = await loadCompatibleOrder(tx, orderId);
           if (!read || read.legacy) throw new Error('Falha na leitura do pedido atualizado.');
           const result = pizzaCommandResultSchema.parse({ order: read.order, pizzaId, clientCommandId, replayed: false });
-          await tx.pizzaCommandReceipt.create({ data: { clientCommandId, payloadHash: hash, orderId, pizzaId, responseSnapshot: result as unknown as Prisma.InputJsonValue } });
+          await tx.pizzaCommandReceipt.create({ data: { clientCommandId, payloadHash: hash, orderId, pizzaId, operatorSessionId: actor.sessionId, responseSnapshot: result as unknown as Prisma.InputJsonValue } });
           return result;
         }, { timeout: 10000, maxWait: 5000 });
       } catch (error) {

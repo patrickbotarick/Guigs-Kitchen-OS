@@ -190,4 +190,12 @@ Validação: 71 testes API, 28 montagem, lint/typecheck/build e navegadores. `np
 
 Fase 3C.2 fechada no commit local `b1892a4`. Assembly recebe `kitchen.pizza.updated` e `kitchen.order.updated` versionados, emitidos somente após commit; novos pedidos reutilizam `order.created`. Notificações levam a GET v2 com reconciliação por versão, deduplicação e proteção contra respostas antigas. Connect/reconnect ressincroniza explicitamente; fallback passa a 120 segundos e indicador discreto mostra Online/Reconectando/Offline. Concorrência, idempotência, 409 e DEV separado permanecem.
 
-`npm run test:assembly:realtime:browser` usa API 3349/Vite 5180/SQLite descartáveis e dois clientes reais para balcão → fila, comandos alternados, evento perdido/reconexão e reinício da API. 73 testes API e 34 montagem. Não há operador/claim/lock ou operações de forno/finalização. Contratos, arquivos, testes e limites em [PHASE_3D1_REALTIME.md](docs/PHASE_3D1_REALTIME.md).
+`npm run test:assembly:realtime:browser` usa API 3349/Vite 5180/SQLite descartáveis e dois clientes reais para balcão → fila, comandos alternados, evento perdido/reconexão e reinício da API. 73 testes API e 34 montagem no fechamento da fase. Operador/claim/lock e forno/finalização ficaram fora do escopo original. Contratos, arquivos, testes e limites em [PHASE_3D1_REALTIME.md](docs/PHASE_3D1_REALTIME.md).
+
+## Fase 3D.2A — identidade operacional
+
+Fase 3D.1 fechada no commit local `10b1cf6`. Assembly real exige PIN numérico (hash salted scrypt) e sessão operacional validada pelo servidor. UUID persistente identifica o perfil do tablet; operador e terminal aparecem discretamente na fila. Trocar montador encerra a sessão e volta ao PIN, com aviso se houver pizzas em montagem. Comandos auditam operador/terminal/sessão e preservam concorrência, idempotência e realtime. DEMO continua separado.
+
+Migration aditiva cria Operator/Workstation/OperatorSession e vínculos históricos, sem reescrever autoria anterior. **Antes do primeiro uso real, cadastre os montadores com `npm run operator:configure`**, que pede PIN mascarado. Não existem operadores/PINs padrão na loja. `npm run workstation:configure` permite nomear terminal após primeiro login válido. Sessão padrão 12 horas (`OPERATOR_SESSION_HOURS`).
+
+O teste realtime também valida dois montadores, PIN touch, refresh, troca e autoria preservada. Modelo, configuração, segurança, base de métricas e roadmap sem distribuição automática em [PHASE_3D2A_OPERATOR_IDENTITY.md](docs/PHASE_3D2A_OPERATOR_IDENTITY.md).

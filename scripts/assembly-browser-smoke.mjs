@@ -231,7 +231,7 @@ try {
   await reception.getByRole('link', { name: 'Cozinha', exact: true }).click();
   await reception.getByRole('heading', { name: 'Fila da cozinha', exact: true }).waitFor();
   await reception.getByRole('link', { name: 'Montagem', exact: true }).click();
-  await reception.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
+  await reception.getByRole('heading', { name: 'Identifique-se', exact: true }).waitFor();
   await reception.goto(`${origin}/kitchen/assembly?source=demo`);
   await reception.getByRole('heading', { name: 'Pedido #1001', exact: true }).waitFor();
   console.info(`Montagem 2.0 validada: catálogo oficial, ordenação ASC/DESC, três cenários manuais, metades independentes com estado único, Broto, bordas, modificadores, extras apenas no contador, ausência de preços, fluxo completo, scroll e rotas existentes. Screenshots: ${screenshots}`);

@@ -1,5 +1,7 @@
 # Fase 3D.1 — realtime da montagem
 
+Fase fechada no commit `10b1cf6`. A evolução de identidade operacional e comandos autenticados está em [PHASE_3D2A_OPERATOR_IDENTITY.md](PHASE_3D2A_OPERATOR_IDENTITY.md); a ausência de operador descrita abaixo corresponde ao escopo original 3D.1.
+
 ## Git e escopo
 
 Fase 3C.2 fechada no commit local `b1892a4` — `feat: persist pizza assembly commands`, após revisão e lint/typecheck/build, 71 testes API e 28 montagem aprovados. Nenhum banco, backup, `.env` ou segredo incluído. `package-lock.json` preservado fora do commit: apenas metadados ambientais peer/libc, sem alteração de dependências/versões. Sem push.

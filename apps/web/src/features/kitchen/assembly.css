@@ -23,6 +23,17 @@
 .ka-connection::before { content: '●'; margin-right: 5px; }
 .ka-connection-online { color: #187544; }
 .ka-connection-offline { color: #a12626; }
+.ka-operator-identity { font-size: 12px; padding: 4px 6px; overflow-wrap: anywhere; }
+.ka-operator-identity > span { display: block; }
+.ka-operator-identity button { margin: 4px 4px 0 0; padding: 5px; border: 1px solid #e6e5e7; border-radius: 4px; background: #fff; }
+.ka-pin-screen { min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: #f4f3f1; }
+.ka-pin-panel { width: min(100%, 380px); display: grid; gap: 12px; background: #fff; padding: 24px; border-radius: 12px; }
+.ka-pin-panel h1, .ka-pin-panel p { margin: 0; }
+.ka-pin-panel input { width: 100%; min-height: 56px; text-align: center; font-size: 28px; letter-spacing: 8px; }
+.ka-pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ka-pin-keypad button { min-height: 66px; font-size: 26px; border: 1px solid #dedbe1; border-radius: 8px; background: #fff; touch-action: manipulation; }
+.ka-pin-keypad button:last-child { background: #187544; color: #fff; }
+.ka-pin-panel [role=alert] { color: #a12626; }
 .ka-order-note { padding: 8px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .ka-screen button:focus-visible, .ka-screen a:focus-visible { outline: 3px solid #461588; outline-offset: 2px; }
 .ka-icon { width: 24px; height: 24px; flex: none; vertical-align: middle; }
