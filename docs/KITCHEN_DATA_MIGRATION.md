@@ -2,7 +2,7 @@
 
 Data: 05/10/2026. Base analisada: commit `f2c5051`, mais os ajustes locais da Fase 2C.
 
-Este documento propõe a Fase 3; não declara os contratos abaixo implementados. Nesta Fase 2C somente a nomenclatura do protótipo e sua validação foram ajustadas. Não foram alterados contratos persistidos, API, Prisma, banco, painel do balcão ou catálogo. A montagem continua em memória.
+As seções 1–9 registram o diagnóstico e a proposta da Fase 2C. A seção 10 distingue o que foi implementado na Fase 3A das capacidades ainda futuras. A montagem continua em memória, sem comandos de API por pizza.
 
 ## 1. Estado atual por camada
 
@@ -294,3 +294,62 @@ Comandos de aceite: `npm run lint`, `npm run typecheck`, `npm test`, `npm run te
 | Captura de montagem concluída em 1024×768 | Inspecionada visualmente após correção de quebra do nome |
 
 O frontend temporário foi encerrado. Não houve migration/seed, escrita no banco da loja, implementação de forno/finalização ou alteração funcional do balcão. Aceite em tablet físico, integração realtime por pizza e ensaio de migração continuam para ciclos posteriores.
+
+## 10. Fase 3A — implementação efetiva
+
+Fechamento da Fase 2C no commit `e5848f3` (`feat: finalize kitchen assembly domain and integration plan`), sem package-lock.json, segredos ou bancos. Alterações da Fase 3A são separadas desse commit.
+
+### Contratos e domínio
+
+- `packages/shared/src/legacy.ts` mantém os contratos v1 anteriores. `index.ts` reexporta v1 e v2 sem mudar os imports públicos existentes.
+- `kitchen.ts` implementa PizzaSize, PizzaComposition, PizzaFlavorReference, IngredientModifier, PizzaHalf, PizzaCrust, PizzaDraft/PizzaRecipe, PizzaItem, ExtraItem, OrderItem, Order v2, snapshot, estado/timestamps e schemas Zod strict. IDs de catálogo permanecem referências explícitas. Entrada de comando/criação HTTP v2 ainda não foi implementada.
+- `canTransitionPizza` centraliza a matriz das nove situações da pizza. O reducer local consulta esse helper, mantendo sua projeção com paused boolean e seus mocks; não foi conectado ao backend. Tipos de tamanho/composição/metade/modificador passam a ser reutilizados no frontend.
+- `deriveOrderProductionState` implementa as regras da seção 6, exclui cancelados e exige extras/embalagem para despacho. Pedido vazio é erro; suporte puro a agregação de extras isolados não libera a criação dessa modalidade (Order v2 ainda exige 1–30 pizzas). Não chamar o helper para sobrescrever estados logísticos; `isLogisticsOrderStatus` permite identificá-los.
+- Timestamps são ISO UTC no transporte. Marcos já percorridos devem existir e estar em ordem; pausa exige pausedAt atual. Ainda não há serviço de comandos que grave/recalcule essas datas.
+- Ajuste justificado da proposta: campos de composição ficam em `PizzaItem.recipe`, e observação em `PizzaItem.notes`, evitando colisões com produção/identidade e duplicação de notes. Snapshot é embutido na pizza nesta fundação, em vez de uma tabela/ID de snapshot separada: isso permite persistência atômica da evidência histórica sem introduzir gerenciamento de versões de snapshot reutilizado.
+
+### Snapshot
+
+`createRecipeSnapshot` resolve sabor, ingredientes removidos/adicionados e borda a partir de catálogo confiável com revisão. Faz cópia independente dos dados. Preserva nomes, composição, tamanho, modificadores por metade, ingredientes relevantes e borda, inclusive preço null. `recipeSnapshotSchema` e `pizzaItemSchema` validam cardinalidade/consistência. A leitura não depende de consultar o catálogo atual.
+
+Snapshot confiável deve ser construído no servidor ao criar o pedido na Fase 3B. O schema não prova que texto recebido de um cliente é a receita oficial. API de criação não deve aceitar snapshot/estado/version arbitrários. Imutabilidade após criação será regra do serviço: não existe endpoint de edição de snapshot nesta fase. Mudanças no cardápio não podem alterar snapshots armazenados.
+
+### Banco e migration
+
+Migration: `apps/api/prisma/migrations/20261005180000_structured_kitchen/migration.sql`.
+
+- Adiciona a Order: schemaVersion (default 1), structuredChannel (nullable), version (default 0) e packingFinishedBy (nullable). Atendimento permanece em Order.type. Todos os pedidos existentes continuam v1.
+- Cria PizzaItem, PizzaHalf, PizzaIngredientModifier, ExtraItem e PizzaProductionHistory, ligados ao pedido existente. Nenhuma tabela/coluna legada removida ou reconstruída; nenhum backfill inferido.
+- PizzaItem contém tamanho/composição/borda/revisão, snapshot JSON validado, observação, estado, versão e timestamps. PizzaHalf armazena flavorId e posição 1/2; modificadores têm ingredientId e escopo de metade. ExtraItem armazena ID/revisão/nome histórico, quantidade e conferência.
+- Novos vínculos usam ON DELETE RESTRICT para proteger evidências estruturadas. Unicidade por pizza/metade/modificador e índices de fila/histórico. CHECKs SQL protegem Broto/composição, posições de metade e quantidades; os CHECKs devem ser mantidos em futuras migrations, pois não são declarados no schema Prisma. Cardinalidade completa das metades, unicidade de posição entre PizzaItem e ExtraItem e pertencimento ao catálogo exigem validação transacional de serviço, não são garantidos só por FKs.
+- Flavor/crust/ingredient IDs referenciam o catálogo estruturado, sem FK para CatalogFlavor legado. Não foi importado o catálogo para tabelas novas nesta fase. A criação futura terá que validar essas referências com catálogo/revisão confiáveis.
+- Histórico individual preparado, mas nenhuma linha criada para pizzas antigas. Claims/leases/locks não foram implementados. Campos de ator/estação no histórico não equivalem a autenticação.
+
+O diff automático do Prisma propunha reconstruir Order. A migration final substitui essa operação por quatro ALTER TABLE ADD COLUMN e apenas CREATE TABLE/INDEX. Foi ensaiada em SQLite temporário contendo pedido, item, modificador, contador e histórico legados antes da aplicação.
+
+A API em execução foi encerrada com autorização do usuário para liberar a DLL Prisma no Windows. Backup consistente criado via SQLite backup API em `apps/api/prisma/backup-phase3a-before-20261005T174023Z.db` (ignorado pelo Git). Migration aplicada ao dev.db local sem seed. A comparação integral das colunas preexistentes de oito tabelas legadas passou, com integrity_check/foreign_key_check OK e nenhuma pizza/história individual inferida.
+
+### Leitura compatível e proteção do legado
+
+`readOrderData` retorna envelope discriminado `{ schemaVersion, legacy, order }`. Sem versão ou versão 1: valida e preserva o texto legado, sem converter tamanhos/nomes ou inventar histórico. Versão 2: exige estrutura/snapshot válidos. Versão desconhecida ou v2 inválido é erro, nunca fallback silencioso.
+
+`apps/api/src/kitchen-data.ts` implementa `loadCompatibleOrder` para leitura interna persistida v1/v2. Os endpoints públicos continuam v1: lista/detalhe/histórico não expõem v2 como legado; comando de transição do pedido inteiro rejeita v2. Não há endpoint de criação v2, eventos por pizza ou integração do Assembly nesta fase.
+
+### Rollback operacional
+
+1. Parar API/frontend antes de trocar cliente/código/banco. Fazer novo backup consistente do estado atual, mesmo que pretenda retornar à versão anterior.
+2. Para rollback de código com dados novos: manter schema aditivo; nunca apagar tabelas/colunas ou desativar FKs. Voltar a leitura legacy apenas não elimina os registros v2. Validar a compatibilidade do Prisma Client e das queries da versão que será executada.
+3. Restaurar o backup pré-migration apenas se não houve nenhuma escrita posterior que precise ser preservada, ou após exportação/reconciliação dessas escritas. Restaurar também metadados de migration do mesmo backup, com serviços parados. Não copiar o banco para trás enquanto WAL/conexões estão ativos.
+4. Esta migration não tem down destrutivo. Nunca editar sua SQL depois de aplicada. Migrações corretivas devem ser novas, aditivas. O backup contém dados da loja e deve permanecer fora do Git.
+
+### Testes e limite da entrega
+
+Novos testes em `kitchen-domain.test.ts` e `kitchen-data.integration.test.ts`: matriz de estados/transições, Broto/Grande/metades, escopo de modificadores/borda, snapshot independente, extras/conferência, versões e leitura legacy/v2, agregação, migration preservando dados, round-trip Prisma, FK/CHECK e proteção contra transição v1 de pedido v2. A suíte anterior de integração aplica também a migration nova em seu banco temporário.
+
+Fase 3B ainda precisa: catálogo confiável/revisão estável (incluindo extras), serviço transacional de criação v2 com contador/histórico inicial/snapshot e idempotência, payload/endpoint versionado e formulário estruturado do balcão. Validar limites/cross-table positions/cardinalidade na transação e nunca confiar em status/snapshot do navegador. Claims e comandos por pizza, Socket.IO por item e troca dos mocks serão entregas posteriores.
+
+### Aceite final da Fase 3A
+
+Lint, typecheck das três workspaces e build API/frontend passaram. `npm test`: 34 testes passaram (10 anteriores + 18 de domínio + 6 de persistência/compatibilidade). `npm run test:assembly`: 16 passaram. O teste de navegador da montagem também passou após reutilizar tipos/regras compartilhados. `prisma migrate diff` não detecta diferença entre migrations e schema; `migrate status` confirma banco atualizado.
+
+A API foi retomada após a migration e responde HTTP 200 em `/health` e `/orders`. A leitura HTTP foi verificada sem criar pedidos reais. O frontend temporário de validação foi encerrado. O lockfile continua preexistente e fora do commit 2C. A Fase 3A permanece como alterações locais para revisão; nenhuma Fase 3B ou push foi executado.

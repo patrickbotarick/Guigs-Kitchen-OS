@@ -1,8 +1,8 @@
 // Transcribed from the four visually verified pages of Cardapio Guig's Vertical 2026.pdf.
 // No culinary defaults: recipe order and ingredient wording follow the primary category.
 export type PizzaCategory = 'TRADICIONAL' | 'ESPECIAL' | 'PREMIUM' | 'DOCE';
-export type PizzaSize = 'BROTO' | 'GRANDE';
-export type PizzaComposition = 'WHOLE' | 'HALF_HALF';
+export type { PizzaSize, PizzaComposition } from '@guigs/shared';
+import type { PizzaSize } from '@guigs/shared';
 export interface CatalogIngredient { id: string; name: string }
 export interface PizzaFlavor {
   id: string; name: string; category: PizzaCategory; ingredientIds: string[];

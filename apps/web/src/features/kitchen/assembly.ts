@@ -1,4 +1,5 @@
 import { createDemoOrders, createMockOrder } from './mockOrders';
+import { canTransitionPizza } from '@guigs/shared';
 import type { AssemblyHandoff, AssemblyOrder, AssemblyOrderStatus, PizzaAction, PizzaItem, QueueSortDirection, SimulatedOrderInput } from './types';
 
 export const pizzasOf = (order: AssemblyOrder): PizzaItem[] => order.items.filter((item): item is PizzaItem => item.kind === 'PIZZA');
@@ -14,6 +15,9 @@ export function orderStage(order: AssemblyOrder): AssemblyOrderStatus {
   return pizzasOf(order).some(pizza => pizza.status !== 'WAITING_ASSEMBLY') ? 'IN_PRODUCTION' : 'WAITING_PRODUCTION';
 }
 export function transitionPizza(pizza: PizzaItem, action: PizzaAction): PizzaItem {
+  const from = pizza.paused ? 'ASSEMBLY_PAUSED' : pizza.status;
+  const to = { START: 'ASSEMBLING', PAUSE: 'ASSEMBLY_PAUSED', RESUME: 'ASSEMBLING', SEND_TO_OVEN: 'WAITING_OVEN' } as const;
+  if (!canTransitionPizza(from, to[action])) return pizza;
   if (action === 'START' && pizza.status === 'WAITING_ASSEMBLY') return { ...pizza, status: 'ASSEMBLING', paused: false };
   if (action === 'PAUSE' && pizza.status === 'ASSEMBLING' && !pizza.paused) return { ...pizza, paused: true };
   if (action === 'RESUME' && pizza.status === 'ASSEMBLING' && pizza.paused) return { ...pizza, paused: false };

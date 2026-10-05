@@ -81,7 +81,7 @@ export class OrderService {
 
   async listActive(): Promise<OrderView[]> {
     const orders = await this.prisma.order.findMany({
-      where: { status: { in: [...activeOrderStatuses] } },
+      where: { schemaVersion: 1, status: { in: [...activeOrderStatuses] } },
       orderBy: { receivedAt: 'asc' },
       include: { items: { include: { modifiers: true } } },
     });
@@ -90,14 +90,14 @@ export class OrderService {
 
   async get(id: string): Promise<OrderView | null> {
     const order = await this.prisma.order.findUnique({
-      where: { id },
+      where: { id, schemaVersion: 1 },
       include: { items: { include: { modifiers: true } } },
     });
     return order ? toOrderView(order) : null;
   }
 
   async history(id: string): Promise<OrderHistoryView[] | null> {
-    const exists = await this.prisma.order.findUnique({ where: { id }, select: { id: true } });
+    const exists = await this.prisma.order.findUnique({ where: { id, schemaVersion: 1 }, select: { id: true } });
     if (!exists) return null;
     const entries = await this.prisma.orderStatusHistory.findMany({
       where: { orderId: id },
@@ -110,8 +110,9 @@ export class OrderService {
     const { expectedStatus, toStatus } = transitionOrderSchema.parse(input);
     try {
       const updated = await this.prisma.$transaction(async tx => {
-        const current = await tx.order.findUnique({ where: { id }, select: { status: true } });
+        const current = await tx.order.findUnique({ where: { id }, select: { status: true, schemaVersion: true } });
         if (!current) throw new OrderNotFoundError('Pedido não encontrado');
+        if (current.schemaVersion !== 1) throw new TransitionConflictError('Pedido estruturado exige comandos por pizza.');
         if (current.status !== expectedStatus) throw new TransitionConflictError(`Estado desatualizado: esperado ${expectedStatus}, atual ${current.status}`);
         if (nextOrderStatus[current.status] !== toStatus) throw new TransitionConflictError(`Transição inválida de ${current.status} para ${toStatus}`);
 

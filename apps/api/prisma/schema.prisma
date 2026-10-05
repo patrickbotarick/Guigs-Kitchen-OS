@@ -69,8 +69,149 @@ model Order {
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
+  // Existing rows stay v1. No automatic conversion or inferred item history.
+  schemaVersion Int @default(1)
+  structuredChannel StructuredOrderChannel?
+  version Int @default(0)
+  packingFinishedBy String?
+  pizzaItems PizzaItem[]
+  extraItems ExtraItem[]
 
   @@index([status, receivedAt])
+}
+
+enum StructuredOrderChannel {
+  COUNTER
+  WHATSAPP
+  IFOOD
+  OTHER
+}
+
+enum PizzaSize {
+  BROTO
+  GRANDE
+}
+
+enum PizzaComposition {
+  WHOLE
+  HALF_HALF
+}
+
+enum PizzaProductionState {
+  WAITING_ASSEMBLY
+  ASSEMBLING
+  ASSEMBLY_PAUSED
+  WAITING_OVEN
+  IN_OVEN
+  BAKED
+  FINISHING
+  FINISHED
+  CANCELLED
+}
+
+enum IngredientModifierType {
+  REMOVE
+  ADD
+}
+
+enum ExtraProductionState {
+  WAITING_FINISHING
+  FINISHED
+  CANCELLED
+}
+
+// Catalog IDs reference the structured catalog, not the unrelated legacy seed.
+// Catalog membership/revisions and snapshots must be checked by the future creation service.
+model PizzaItem {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  position Int
+  size PizzaSize
+  composition PizzaComposition
+  crustId String
+  catalogRevisionId String
+  recipeSnapshot Json
+  notes String?
+  state PizzaProductionState @default(WAITING_ASSEMBLY)
+  version Int @default(0)
+  queuedAt DateTime @default(now())
+  assemblyStartedAt DateTime?
+  pausedAt DateTime?
+  assemblyCompletedAt DateTime?
+  ovenStartedAt DateTime?
+  ovenExpectedEndAt DateTime?
+  bakedAt DateTime?
+  finishingStartedAt DateTime?
+  finishedAt DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  halves PizzaHalf[]
+  history PizzaProductionHistory[]
+
+  @@unique([orderId, position])
+  @@index([state, queuedAt])
+}
+
+model PizzaHalf {
+  id String @id @default(cuid())
+  pizzaId String
+  pizza PizzaItem @relation(fields: [pizzaId], references: [id], onDelete: Restrict)
+  position Int // 1 for whole/first half, 2 only for HALF_HALF
+  flavorId String
+  modifiers PizzaIngredientModifier[]
+
+  @@unique([pizzaId, position])
+}
+
+model PizzaIngredientModifier {
+  id String @id @default(cuid())
+  halfId String
+  half PizzaHalf @relation(fields: [halfId], references: [id], onDelete: Restrict)
+  type IngredientModifierType
+  ingredientId String
+
+  @@unique([halfId, type, ingredientId])
+}
+
+model ExtraItem {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  position Int
+  extraCatalogId String
+  catalogRevisionId String
+  nameSnapshot String
+  quantity Int
+  notes String?
+  state ExtraProductionState @default(WAITING_FINISHING)
+  checkedQuantity Int @default(0)
+  checkedAt DateTime?
+  checkedBy String?
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orderId, position])
+}
+
+model PizzaProductionHistory {
+  id String @id @default(cuid())
+  pizzaId String
+  pizza PizzaItem @relation(fields: [pizzaId], references: [id], onDelete: Restrict)
+  eventType String
+  fromState PizzaProductionState?
+  toState PizzaProductionState
+  changedAt DateTime @default(now())
+  actorType ActorType
+  actorId String?
+  workstationId String?
+  commandId String @unique
+  itemVersion Int
+  reason String?
+
+  @@index([pizzaId, changedAt])
 }
 
 enum ActorType {

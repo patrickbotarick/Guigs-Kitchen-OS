@@ -151,3 +151,13 @@ O primeiro comando cobre catálogo e regras do fluxo. O segundo cria os três ce
 ## Fase 2C — preparação da integração
 
 O protótipo distingue `WAITING_ASSEMBLY`, `ASSEMBLING` e `WAITING_OVEN`, com pausa local durante montagem. **Concluir montagem** encerra apenas o trabalho do montador. O contrato alvo, a máquina persistente proposta, a agregação, a concorrência e o plano de migração aditiva estão em [docs/KITCHEN_DATA_MIGRATION.md](docs/KITCHEN_DATA_MIGRATION.md). API, Prisma e balcão permanecem no contrato legado nesta fase.
+
+## Fase 3A — domínio compartilhado e persistência aditiva
+
+`packages/shared` agora contém contratos v1 preservados e contratos estruturados v2 com validação de Broto/Grande, metades, modificadores, borda, extras, snapshot histórico, estado/timestamps por pizza, transições e agregação. O módulo de montagem reutiliza tipos/regras compartilhados, mas continua em memória.
+
+O Prisma acrescenta `Order.schemaVersion` (default 1) e tabelas `PizzaItem`, `PizzaHalf`, `PizzaIngredientModifier`, `ExtraItem` e `PizzaProductionHistory`. A migration `20261005180000_structured_kitchen` é aditiva, sem conversão de pedidos antigos. Preparar com API parada: `npm run setup` (gera client/aplica migrations/seed idempotente). Faça backup SQLite consistente antes de atualizar um banco que contém dados da loja; o backup local da execução está em `apps/api/prisma/backup-phase3a-before-20261005T174023Z.db`, ignorado pelo Git.
+
+Os endpoints existentes continuam usando v1. Não existe criação HTTP v2 ainda; a leitura interna compatível está em `apps/api/src/kitchen-data.ts`. Pedidos v2 não são expostos pelas rotas legacy nem avançados pela transição do pedido inteiro. A Fase 3B implementará criação estruturada no balcão/API. O contrato e as tabelas novos não significam forno, finalização, locks ou realtime por pizza implementados.
+
+`npm test` inclui testes novos de domínio, snapshot, agregação, migração preservando legado e round-trip Prisma. Estratégia de snapshot, constraints, convivência/rollback e limites estão na seção 10 de [KITCHEN_DATA_MIGRATION.md](docs/KITCHEN_DATA_MIGRATION.md).
