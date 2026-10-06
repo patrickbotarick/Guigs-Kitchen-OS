@@ -17,6 +17,7 @@ export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, i
     fulfillmentType: order.type, channel: order.structuredChannel, notes: order.notes,
     receivedAt: order.receivedAt.toISOString(), createdAt: order.createdAt.toISOString(), updatedAt: order.updatedAt.toISOString(),
     version: order.version, status: order.status, packingFinishedAt: iso(order.packingFinishedAt), packingFinishedBy: order.packingFinishedBy,
+    dispatch: { dispatchReadyAt: iso(order.dispatchReadyAt), waitingDriverAt: iso(order.waitingDriverAt), dispatchedAt: iso(order.dispatchedAt), deliveredAt: iso(order.deliveredAt), pickupReadyAt: iso(order.pickupReadyAt), pickedUpAt: iso(order.pickedUpAt), completedAt: iso(order.completedAt) },
     items: [...order.pizzaItems.map(pizza => {
       const snapshot = recipeSnapshotSchema.parse(pizza.recipeSnapshot);
       if (snapshot.catalogRevisionId !== pizza.catalogRevisionId) throw new Error('Revisão persistida incompatível com snapshot.');

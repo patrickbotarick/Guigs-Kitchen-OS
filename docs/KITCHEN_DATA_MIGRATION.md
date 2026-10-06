@@ -382,3 +382,13 @@ A criação estruturada, catálogo compartilhado, idempotência transacional, sn
 ### Evolução 5B.1 — correções antes do fechamento
 
 5A fechada no commit `e05d45e`. Etapa atual: UNCHECK_PIZZA/UNCHECK_EXTRA/UNCONFIRM_PACKAGING, confirmação simples e motivo opcional, histórico preservado, invalidação automática de embalagem e prontidão recalculada na mesma transação. CAS/idempotência/realtime mantidos; WAITING_DISPATCH bloqueia novas correções normais. Sem migration. [Contrato, testes e limites 5B.1](PHASE_5B1_FINISHING_CORRECTIONS.md). Próximo: revisar/commitar 5B.1, piloto físico e contrato da Fase 5B.2 — Despacho; não implementada nesta entrega.
+
+### Evolução 5B.2 — despacho e conclusão
+
+5B.1 fechada em `f5ea546`. `/kitchen/dispatch` opera por pedido v2: Delivery WAITING_DISPATCH → WAITING_DRIVER → OUT_FOR_DELIVERY → DELIVERED; Retirada/Balcão (PICKUP) WAITING_DISPATCH → READY_FOR_PICKUP → PICKED_UP. Comandos manuais autenticados, CAS/idempotência/auditoria/realtime e timestamps de liberação/handoff/conclusão; estados finais bloqueiam novas transições normais. Migration aditiva aplicada com backup/preservação. [Contrato, lacunas e validações](PHASE_5B2_DISPATCH.md). **Fluxo principal v2 concluído tecnicamente até entrega/retirada**; 5B.2 fechada com revisão, validações finais e commit `feat: add dispatch and pickup workflow`. Piloto físico e dados necessários à operação de delivery continuam pendentes, sem integrações externas nesta entrega.
+
+## Fechamento oficial — Fase 5: Finalização e Despacho
+
+**STATUS: CONCLUÍDA TECNICAMENTE.** Entregues Finalização persistente, conferência de pizzas e extras, embalagem e correções auditáveis até WAITING_DISPATCH; Delivery até DELIVERED e Retirada/Balcão (PICKUP) até PICKED_UP. Realtime, idempotência, concorrência, transações, timestamps e histórico implementados. Fechamento técnico do fluxo principal v2; compatibilidade v1 preservada sem conversão automática. [Registro e validações](PHASE_5B2_DISPATCH.md).
+
+A revisão, validações finais e commit `feat: add dispatch and pickup workflow` encerram a 5B.2 e a Fase 5. Piloto físico permanece validação operacional pendente; endereço estruturado de Delivery permanece pendência conhecida. Fase 6 não iniciada. Esta execução de fechamento não implementa funcionalidades ou integrações novas.

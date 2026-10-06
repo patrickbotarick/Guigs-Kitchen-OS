@@ -137,11 +137,17 @@ export const extraItemSchema = z.object({ ...baseItem, kind: z.literal('EXTRA'),
 });
 export type ExtraItem = z.infer<typeof extraItemSchema>;
 export type OrderItem = PizzaItem | ExtraItem;
+export const dispatchTimelineSchema = z.object({
+  dispatchReadyAt: instant.nullable(), waitingDriverAt: instant.nullable(), dispatchedAt: instant.nullable(), deliveredAt: instant.nullable(),
+  pickupReadyAt: instant.nullable(), pickedUpAt: instant.nullable(), completedAt: instant.nullable(),
+}).strict();
 export const structuredOrderSchema = z.object({
   schemaVersion: z.literal(2), id, number: z.number().int().positive(), customerName: id, customerPhone: z.string().max(30).nullable(),
   fulfillmentType: z.enum(orderTypes), channel: z.enum(['COUNTER', 'WHATSAPP', 'IFOOD', 'OTHER']), notes,
   receivedAt: instant, createdAt: instant, updatedAt: instant, version: z.number().int().nonnegative(), status: z.enum(orderStatuses),
   items: z.array(z.union([pizzaItemSchema, extraItemSchema])).min(1).max(60), packingFinishedAt: instant.nullable(), packingFinishedBy: id.nullable(),
+  // Optional on historical receipts created before dispatch was implemented.
+  dispatch: dispatchTimelineSchema.optional(),
 }).strict().superRefine((order, ctx) => {
   if (order.items.some(item => item.orderId !== order.id) || new Set(order.items.map(item => item.id)).size !== order.items.length
     || new Set(order.items.map(item => item.position)).size !== order.items.length) ctx.addIssue({ code: 'custom', message: 'Itens devem ter IDs/posições únicos e pertencer ao pedido.' });
@@ -167,6 +173,18 @@ export const finishingCommandSchema = z.discriminatedUnion('command', [
 export type FinishingCommandInput = z.infer<typeof finishingCommandSchema>;
 export const finishingCommandResultSchema = z.object({ order: structuredOrderSchema, clientCommandId: z.string().uuid(), replayed: z.boolean() }).strict();
 export type FinishingCommandResult = z.infer<typeof finishingCommandResultSchema>;
+export const dispatchCommands = ['MARK_WAITING_DRIVER', 'MARK_OUT_FOR_DELIVERY', 'MARK_DELIVERED', 'MARK_READY_FOR_PICKUP', 'MARK_PICKED_UP'] as const;
+export const dispatchCommandSchema = z.object({ command: z.enum(dispatchCommands), expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid() }).strict();
+export type DispatchCommandInput = z.infer<typeof dispatchCommandSchema>;
+export const dispatchCommandResultSchema = z.object({ order: structuredOrderSchema, clientCommandId: z.string().uuid(), replayed: z.boolean() }).strict();
+export type DispatchCommandResult = z.infer<typeof dispatchCommandResultSchema>;
+export const dispatchTransitions = {
+  MARK_WAITING_DRIVER: { fulfillmentType: 'DELIVERY', from: 'WAITING_DISPATCH', to: 'WAITING_DRIVER' },
+  MARK_OUT_FOR_DELIVERY: { fulfillmentType: 'DELIVERY', from: 'WAITING_DRIVER', to: 'OUT_FOR_DELIVERY' },
+  MARK_DELIVERED: { fulfillmentType: 'DELIVERY', from: 'OUT_FOR_DELIVERY', to: 'DELIVERED' },
+  MARK_READY_FOR_PICKUP: { fulfillmentType: 'PICKUP', from: 'WAITING_DISPATCH', to: 'READY_FOR_PICKUP' },
+  MARK_PICKED_UP: { fulfillmentType: 'PICKUP', from: 'READY_FOR_PICKUP', to: 'PICKED_UP' },
+} as const;
 
 // Creation accepts intent only, never client IDs/positions/status/timestamps/snapshots.
 export const createStructuredOrderSchema = z.object({

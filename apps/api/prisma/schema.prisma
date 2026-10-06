@@ -65,6 +65,10 @@ model Order {
   waitingDriverAt DateTime?
   dispatchedAt  DateTime?
   deliveredAt   DateTime?
+  dispatchReadyAt DateTime?
+  pickupReadyAt DateTime?
+  pickedUpAt DateTime?
+  completedAt DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   items         OrderItem[]
@@ -79,6 +83,7 @@ model Order {
   structuredCreation StructuredOrderCreation?
   pizzaCommands PizzaCommandReceipt[]
   finishingCommands FinishingCommandReceipt[]
+  dispatchCommands DispatchCommandReceipt[]
 
   @@index([status, receivedAt])
 }
@@ -93,6 +98,17 @@ model StructuredOrderCreation {
 }
 
 model FinishingCommandReceipt {
+  clientCommandId String @id
+  payloadHash String
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  responseSnapshot Json
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model DispatchCommandReceipt {
   clientCommandId String @id
   payloadHash String
   orderId String

@@ -14,8 +14,9 @@ import { OperationalAuthError, PinLoginError, LoginRateLimitError, SessionRespon
 import { supervisorRecoverySchema } from '@guigs/shared';
 import { SupervisorPermissionError, type SupervisorRecoveryService } from './supervisor-recovery.js';
 import { ovenConfiguration } from './oven-config.js';
-import { finishingCommandSchema } from '@guigs/shared';
+import { finishingCommandSchema, dispatchCommandSchema } from '@guigs/shared';
 import { finishingNotifications, type FinishingService } from './finishing.js';
+import { dispatchNotifications, type DispatchService } from './dispatch.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -25,7 +26,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -68,6 +69,13 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
       } catch (error) { next(error); }
     });
   }
+  if (dispatch) app.post('/orders/v2/:orderId/dispatch/commands', async (req, res, next) => {
+    try {
+      const result = await dispatch.execute(z.string().cuid().parse(req.params.orderId), dispatchCommandSchema.parse(req.body), credentials(req));
+      for (const notification of dispatchNotifications(result)) { try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação de despacho após commit:', error); } }
+      res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+    } catch (error) { next(error); }
+  });
   if (finishing) app.post('/orders/v2/:orderId/finishing/commands', async (req, res, next) => {
     try {
       const result = await finishing.execute(z.string().cuid().parse(req.params.orderId), finishingCommandSchema.parse(req.body), credentials(req));

@@ -12,11 +12,12 @@ import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorP
 import { KitchenRecoveryPage } from './features/kitchen/pages/KitchenRecoveryPage';
 import { OvenPage } from './features/oven/OvenPage';
 import { FinishingPage } from './features/finishing/FinishingPage';
+import { DispatchPage } from './features/dispatch/DispatchPage';
 import './style.css';
 
 function App() {
   const location = useLocation();
-  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing';
+  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch';
   return <div className="app-shell">
     {!assembly && <header className="topbar">
       <Link className="brand" to="/" aria-label="Guig's Kitchen, voltar ao painel"><BrandLogo /></Link>
@@ -26,7 +27,7 @@ function App() {
         <Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Cozinha</Link>
         <Link to="/kitchen/assembly">Montagem</Link>
         <Link to="/kitchen/oven">Forno</Link>
-        <Link to="/kitchen/finishing">Finalização</Link>
+        <Link to="/kitchen/finishing">Finalização</Link><Link to="/kitchen/dispatch">Despacho</Link>
       </nav>
     </header>}
     <main><Routes>
@@ -35,7 +36,7 @@ function App() {
       <Route path="/orders/new/legacy" element={<LegacyNewOrder />} />
       <Route path="/kitchen" element={<Kitchen />} />
       <Route path="/kitchen/oven" element={<OvenPage />} />
-      <Route path="/kitchen/finishing" element={<FinishingPage />} />
+      <Route path="/kitchen/finishing" element={<FinishingPage />} /><Route path="/kitchen/dispatch" element={<DispatchPage />} />
       <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
         <Route index element={<KitchenAssemblyPage />} />
         <Route path="recovery" element={<KitchenRecoveryPage />} />

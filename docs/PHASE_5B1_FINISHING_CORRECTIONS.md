@@ -92,3 +92,7 @@ Limites: piloto físico da loja ainda necessário; rede/concorrência SQLite em 
 - git diff --check: aprovado; package-lock inalterado, nenhum banco/backup/build/segredo rastreado. A 5B.1 permanece sem commit próprio para revisão; nenhum push realizado.
 
 Arquivos desta fase: `packages/shared/src/kitchen.ts`; `apps/api/src/finishing.ts` e `finishing.integration.test.ts`; `apps/web/src/features/finishing/{FinishingPage.tsx,CorrectionDialog.tsx,useFinishing.ts,finishing.css,finishing.test.ts}`; `scripts/finishing-browser-smoke.mjs` e `scripts/helpers/finishing-corrections-browser.mjs`; README; `docs/KITCHEN_DATA_MIGRATION.md`; documento de fechamento `docs/PHASE_5A_FINISHING.md`; este documento. Prisma/schema/migrations e endpoints anteriores preservados.
+
+## Fechamento da 5B.1
+
+Revisão e validações repetidas antes da 5B.2; commit `f5ea546` (`feat: add finishing correction workflow`). Despacho e conclusão foram acrescentados na etapa seguinte, documentada em [PHASE_5B2_DISPATCH.md](PHASE_5B2_DISPATCH.md); a barreira de correções após WAITING_DISPATCH permanece.

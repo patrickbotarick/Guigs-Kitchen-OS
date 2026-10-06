@@ -17,7 +17,7 @@ export class StructuredOrderService {
     return read && !read.legacy ? read.order : null;
   }
   async listActive(): Promise<Order[]> {
-    const ids = await this.prisma.order.findMany({ where: { schemaVersion: 2, status: { in: ['WAITING_PRODUCTION', 'IN_PRODUCTION', 'OVEN', 'FINISHING', 'WAITING_DISPATCH'] } }, orderBy: { receivedAt: 'asc' }, select: { id: true } });
+    const ids = await this.prisma.order.findMany({ where: { schemaVersion: 2, status: { in: ['WAITING_PRODUCTION', 'IN_PRODUCTION', 'OVEN', 'FINISHING', 'WAITING_DISPATCH', 'WAITING_DRIVER', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'] } }, orderBy: { receivedAt: 'asc' }, select: { id: true } });
     const orders = await Promise.all(ids.map(({ id }) => this.get(id)));
     return orders.filter((order): order is Order => order !== null);
   }

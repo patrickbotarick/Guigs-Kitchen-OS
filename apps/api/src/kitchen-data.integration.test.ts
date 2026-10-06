@@ -34,6 +34,7 @@ beforeAll(async () => {
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261005220000_operator_identity/migration.sql'), 'utf8'));
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006120000_pizza_assignment/migration.sql'), 'utf8'));
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006150000_auto_assignment/migration.sql'), 'utf8'));
+  await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006190000_dispatch_commands/migration.sql'), 'utf8'));
 });
 afterAll(async () => {
   await prisma.$disconnect();
@@ -73,7 +74,7 @@ describe('migração aditiva Kitchen e leitura compatível', () => {
       extraItems: { create: { id: extra.id, position: extra.position, extraCatalogId: extra.extraCatalogId, catalogRevisionId: extra.catalogRevisionId, nameSnapshot: extra.snapshot.name, quantity: extra.quantity } },
     } });
     const read = await loadCompatibleOrder(prisma, fixture.id);
-    expect(read).toEqual({ schemaVersion: 2, legacy: false, order: fixture });
+    expect(read).toEqual({ schemaVersion: 2, legacy: false, order: { ...fixture, dispatch: { dispatchReadyAt: null, waitingDriverAt: null, dispatchedAt: null, deliveredAt: null, pickupReadyAt: null, pickedUpAt: null, completedAt: null } } });
     expect(await prisma.pizzaProductionHistory.count()).toBe(0); // No fabricated history even for this raw test fixture.
   });
   it('escrita/leitura legacy permanece funcional após migration, com número sequencial', async () => {

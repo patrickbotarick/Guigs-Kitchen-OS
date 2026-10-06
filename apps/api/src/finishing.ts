@@ -89,7 +89,7 @@ export class FinishingService {
           // asks the existing aggregate to include confirmed packing.
           const status = deriveOrderProductionState({ pizzas: pizzas.map(pizza => pizza.state), extras, packingConfirmed: input.command === 'RELEASE_TO_DISPATCH' });
           if (input.command === 'RELEASE_TO_DISPATCH' && status !== 'WAITING_DISPATCH') throw new PizzaCommandConflictError('Pedido ainda incompleto para despacho.');
-          const changedOrder = await tx.order.updateMany({ where: { id: orderId, version: input.expectedVersion }, data: { status, version: { increment: 1 }, ...(input.command === 'RELEASE_TO_DISPATCH' ? { packingFinishedAt: order.packingFinishedAt } : {}) } });
+          const changedOrder = await tx.order.updateMany({ where: { id: orderId, version: input.expectedVersion }, data: { status, version: { increment: 1 }, ...(input.command === 'RELEASE_TO_DISPATCH' ? { dispatchReadyAt: now } : {}) } });
           if (changedOrder.count !== 1) throw new PizzaCommandConflictError('Pedido atualizado por outro terminal.');
           await tx.orderStatusHistory.create({ data: { orderId, fromStatus: order.status, toStatus: status, changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, metadata: JSON.stringify({ ...metadata, event, orderVersion: order.version + 1 }) } });
           // A corrected required item invalidates packing in this same transaction.

@@ -1,6 +1,6 @@
-# Guig's Kitchen — Balcão, montagem, forno e finalização
+# Guig's Kitchen — Balcão, montagem, forno, finalização e despacho
 
-**Etapa atual: Fase 5B.1 — correções da Finalização concluídas tecnicamente, disponíveis localmente para revisão/commit.** 5A fechada em `e05d45e`. WAITING_DISPATCH encerra a Finalização; o próximo módulo é Despacho (5B.2), ainda não implementado. Piloto físico permanece pendente. [Regras e validações](docs/PHASE_5B1_FINISHING_CORRECTIONS.md).
+**Fase 5 — Finalização e Despacho: STATUS CONCLUÍDA TECNICAMENTE.** Finalização persistente, conferência de pizzas/extras, embalagem e correções auditáveis até WAITING_DISPATCH; Despacho manual de Delivery até DELIVERED e Retirada/Balcão (PICKUP) até PICKED_UP. Realtime, idempotência, concorrência, timestamps e histórico implementados. Fluxo principal v2 tecnicamente completo, com v1 preservado. Piloto físico é validação operacional pendente; endereço estruturado de Delivery permanece pendência conhecida. Balcão é canal de entrada. [Fechamento, contrato e validações](docs/PHASE_5B2_DISPATCH.md). Fase 6 não iniciada.
 
 **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE.** 4B fechada no commit `a8534d1`; piloto físico permanece validação operacional pendente.
 
@@ -8,9 +8,9 @@
 
 **Fase 3 — fluxo de montagem persistente, multioperador e realtime: STATUS CONCLUÍDA.** Fechamento da 3D.2D no commit `5f76de4`. Piloto físico permanece como validação operacional pendente e não bloqueia tecnicamente o início da Fase 4A — forno.
 
-**Fase 4A — forno operacional:** `/kitchen/oven` exibe a fila compartilhada WAITING_OVEN e pizzas IN_OVEN, com comandos persistentes ENTER_OVEN/REMOVE_FROM_OVEN, autoria, CAS, idempotência e realtime. Usa o mesmo PIN/terminal/heartbeat da montagem. Timer por timestamps do servidor, referência temporária configurável por `OVEN_DEFAULT_MINUTES` (default 7 minutos), sem retirada automática. BAKED prepara o handoff; finalização ainda não implementada. [Contrato, configuração, testes e limites](docs/PHASE_4A_OVEN.md).
+**Fase 4A — forno operacional:** `/kitchen/oven` exibe a fila compartilhada WAITING_OVEN e pizzas IN_OVEN, com comandos persistentes ENTER_OVEN/REMOVE_FROM_OVEN, autoria, CAS, idempotência e realtime. Usa o mesmo PIN/terminal/heartbeat da montagem. Timer por timestamps do servidor, referência temporária configurável por `OVEN_DEFAULT_MINUTES` (default 7 minutos), sem retirada automática. BAKED prepara o handoff para a Finalização, implementada na Fase 5. [Contrato, configuração, testes e limites](docs/PHASE_4A_OVEN.md).
 
-**Fase 4B — operação do forno:** 4A fechada em `23a2637`. `OVEN_CAPACITY` opcional controla quantidade de pizzas IN_OVEN, com validação transacional da última vaga, ocupação/vagas na tela e mensagem Forno cheio. Vazio mantém entradas sem limite configurado. Referência de tempo permanece genérica; pizzas no forno são ordenadas pela previsão de saída e mostram operador de entrada. Alterar `.env` e reiniciar API reflete configuração nos tablets; não modifica previsões já salvas. Sem migration. [Configuração, concorrência e testes](docs/PHASE_4B_OVEN_OPERATIONS.md). Finalização fica para a Fase 5.
+**Fase 4B — operação do forno:** 4A fechada em `23a2637`. `OVEN_CAPACITY` opcional controla quantidade de pizzas IN_OVEN, com validação transacional da última vaga, ocupação/vagas na tela e mensagem Forno cheio. Vazio mantém entradas sem limite configurado. Referência de tempo permanece genérica; pizzas no forno são ordenadas pela previsão de saída e mostram operador de entrada. Alterar `.env` e reiniciar API reflete configuração nos tablets; não modifica previsões já salvas. Sem migration. [Configuração, concorrência e testes](docs/PHASE_4B_OVEN_OPERATIONS.md). Finalização e Despacho foram implementados na Fase 5.
 
 Protótipo local da operação da cozinha: criar pedidos fictícios, persistir em SQLite, avançar por estados validados e acompanhar o histórico em tempo real. O escopo e as fases futuras estão em [BASE_DO_PROJETO.md](BASE_DO_PROJETO.md).
 
@@ -230,4 +230,8 @@ Rota `/kitchen/oven`, fila compartilhada por pizza, ordenação pela montagem ma
 
 ## Fase 5B.1 — correções da Finalização
 
-5A fechada em `e05d45e`. Corrigir pizza, reduzir extras conferidos e desfazer embalagem exige confirmação simples, preserva autoria/histórico e aceita motivo opcional. Correção de item invalida embalagem automaticamente na mesma transação, com CAS/idempotência/realtime. WAITING_DISPATCH é o fechamento e rejeita novas correções normais. Sem nova migration. [Regras, testes, limites e próxima etapa](docs/PHASE_5B1_FINISHING_CORRECTIONS.md). Próximo ciclo: revisão/commit 5B.1, piloto físico e contrato de Despacho (5B.2).
+5A fechada em `e05d45e` e 5B.1 em `f5ea546`. Corrigir pizza, reduzir extras conferidos e desfazer embalagem exige confirmação simples, preserva autoria/histórico e aceita motivo opcional. Correção de item invalida embalagem automaticamente na mesma transação, com CAS/idempotência/realtime. WAITING_DISPATCH é o fechamento e rejeita novas correções normais. Sem nova migration. [Regras, testes e limites](docs/PHASE_5B1_FINISHING_CORRECTIONS.md). Despacho foi entregue na 5B.2; piloto físico permanece pendente.
+
+## Fase 5B.2 — Despacho e conclusão operacional
+
+Rota `/kitchen/dispatch`, fila por pedido com filtros Delivery e Retirada/Balcão, liberação mais antiga primeiro e próximos comandos explícitos. DELIVERED/PICKED_UP gravam completedAt e encerram o pedido. Novos timestamps e recibos têm migration aditiva, backup e comparação dos valores anteriores. Reutiliza PIN/presença, CAS, idempotência e realtime. v1 preservado, sem conversão automática. `npm run test:dispatch` e `npm run test:dispatch:browser` validam regras e ponta a ponta em dois tablets, incluindo 30 pedidos. [Contrato e limites](docs/PHASE_5B2_DISPATCH.md). Fechamento técnico da Fase 5 registrado nesta entrega; piloto físico pendente. Nenhuma integração externa ou Fase 6 iniciada.

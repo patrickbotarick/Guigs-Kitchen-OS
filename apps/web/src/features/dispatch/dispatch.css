@@ -1,0 +1,2 @@
+.dispatch-page [aria-label="Tipo de atendimento"] { display: flex; gap: 8px; flex-wrap: wrap; }
+.dispatch-page [aria-label="Tipo de atendimento"] button[aria-pressed="true"] { background: var(--color-brand-soft); border-color: var(--color-brand-primary); }
