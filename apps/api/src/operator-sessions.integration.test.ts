@@ -47,7 +47,7 @@ describe('identidade operacional', () => {
   });
   it('PIN válido registra terminal e retorna somente dados mínimos sem hashes', async () => {
     const { auth, session } = await login(); expect(session.operatorName).toBe('João fixture');
-    expect(Object.keys(session).sort()).toEqual(['available', 'expiresAt', 'operatorId', 'operatorName', 'sessionId', 'startedAt', 'workstationId', 'workstationName'].sort());
+    expect(Object.keys(session).sort()).toEqual(['available', 'expiresAt', 'operatorId', 'operatorName', 'sessionId', 'startedAt', 'workstationId', 'workstationName', 'role', 'lastSeenAt', 'presenceStatus', 'heartbeatIntervalMs'].sort());
     const stored = await prisma.operatorSession.findUniqueOrThrow({ where: { id: session.sessionId } });
     expect(stored.tokenHash).not.toBe(auth.token); expect(stored.active).toBe(true);
     expect((await prisma.workstation.findUniqueOrThrow({ where: { id: session.workstationId } })).deviceKey).toBe(auth.deviceKey);

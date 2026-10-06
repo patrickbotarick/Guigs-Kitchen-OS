@@ -11,6 +11,8 @@ import { type KitchenNotification } from '@guigs/shared';
 import { commandNotifications, creationAssignmentNotifications } from './kitchen-events.js';
 import { operatorLoginSchema, operatorAvailabilitySchema } from '@guigs/shared';
 import { OperationalAuthError, PinLoginError, LoginRateLimitError, SessionResponsibilityConflictError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
+import { supervisorRecoverySchema } from '@guigs/shared';
+import { SupervisorPermissionError, type SupervisorRecoveryService } from './supervisor-recovery.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -20,7 +22,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -31,6 +33,9 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
   if (operators) {
+    app.post('/operators/session/heartbeat', async (req, res, next) => {
+      try { z.object({}).strict().parse(req.body); res.set('Cache-Control', 'no-store').json(await operators.heartbeat(credentials(req))); } catch (error) { next(error); }
+    });
     app.patch('/operators/session', async (req, res, next) => {
       try { res.set('Cache-Control', 'no-store').json(await operators.setAvailability(credentials(req), operatorAvailabilitySchema.parse(req.body).available)); } catch (error) { next(error); }
     });
@@ -42,6 +47,18 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
     });
     app.delete('/operators/session', async (req, res, next) => {
       try { await operators.end(credentials(req)); res.set('Cache-Control', 'no-store').status(204).end(); } catch (error) { next(error); }
+    });
+  }
+  if (recovery) {
+    app.get('/operators/recovery-targets', async (req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').json(await recovery.targets(credentials(req))); } catch (error) { next(error); }
+    });
+    app.post('/orders/v2/:orderId/pizzas/:pizzaId/recovery', async (req, res, next) => {
+      try {
+        const result = await recovery.execute(z.string().cuid().parse(req.params.orderId), z.string().cuid().parse(req.params.pizzaId), supervisorRecoverySchema.parse(req.body), credentials(req));
+        for (const notification of commandNotifications(result)) { try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação de recuperação após commit:', error); } }
+        res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+      } catch (error) { next(error); }
     });
   }
   if (commands) app.post('/orders/v2/:orderId/pizzas/:pizzaId/commands', async (req, res, next) => {
@@ -123,6 +140,7 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
 
   const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     void _next;
+    if (error instanceof SupervisorPermissionError) { res.status(403).json({ error: error.message }); return; }
     if (error instanceof SessionResponsibilityConflictError) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof OperationalAuthError || error instanceof PinLoginError) { res.status(401).json({ error: error.message }); return; }
     if (error instanceof LoginRateLimitError) { res.set('Retry-After', String(error.retryAfter)).status(429).json({ error: error.message }); return; }

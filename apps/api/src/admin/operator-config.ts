@@ -28,7 +28,9 @@ try {
   const questions = createInterface({ input: process.stdin, output: process.stdout });
   const name = await questions.question('Nome do montador (novo ou existente): '); questions.close();
   const pin = await maskedPin();
-  const operator = await configureOperator(prisma, { name, pin, active: !process.argv.includes('--inactive') });
-  console.info(`Operador ${operator.name}: ${operator.active ? 'ativo' : 'inativo'}. Sessões anteriores encerradas.`);
+  if (process.argv.includes('--supervisor') && process.argv.includes('--assembler')) throw new Error('Escolha apenas um papel.');
+  const role = process.argv.includes('--supervisor') ? 'SUPERVISOR' : process.argv.includes('--assembler') ? 'ASSEMBLER' : undefined;
+  const operator = await configureOperator(prisma, { name, pin, active: !process.argv.includes('--inactive'), role });
+  console.info(`Operador ${operator.name}: ${operator.active ? 'ativo' : 'inativo'}, ${operator.role}. Sessões anteriores encerradas.`);
 } catch (error) { console.error(error instanceof Error ? error.message : 'Falha no cadastro.'); process.exitCode = 1; }
 finally { await prisma.$disconnect(); }

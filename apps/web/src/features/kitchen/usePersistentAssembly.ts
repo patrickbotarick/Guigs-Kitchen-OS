@@ -51,6 +51,7 @@ export function usePersistentAssembly(credentials: SessionCredentials, operatorS
     socket.on('kitchen.order.updated', value => { if (reconciliation.current.notify('kitchen.order.updated', value)) refresh(); });
     socket.on('order.created', value => { if (reconciliation.current.created(value)) refresh(); });
     socket.on('order.updated', value => { if (reconciliation.current.created(value)) refresh(); });
+    socket.on('operators.changed', () => { window.dispatchEvent(new Event('guigs-operators-changed')); refresh(); });
     window.addEventListener('online', online); window.addEventListener('offline', offline);
     return () => { socket.disconnect(); clearTimeout(refreshTimer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
   }, []);

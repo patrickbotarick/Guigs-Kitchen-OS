@@ -1,6 +1,6 @@
 # Fase 3D.2C — distribuição automática por carga
 
-Implementação local em 06/10/2026, após fechamento da 3D.2B no commit `90f517f` (`feat: add pizza assignment and operator responsibility`). Sem pesos por sabor/dificuldade, dashboard, supervisor, redistribuição automática ou forno.
+Implementação em 06/10/2026, após fechamento da 3D.2B no commit `90f517f` (`feat: add pizza assignment and operator responsibility`). Fechada no commit `e894040`, `feat: add automatic pizza workload distribution`. Este documento descreve o escopo original da 3D.2C; a [3D.2D](PHASE_3D2D_PRESENCE_RECOVERY.md) acrescenta presença, encerramento de turno e supervisão. Sem pesos por sabor/dificuldade, dashboard, redistribuição automática antiga ou forno.
 
 ## Elegibilidade e disponibilidade
 
@@ -16,7 +16,7 @@ Não há quantidade fixa de montadores. Operador sem sessão válida não partic
 
 Disponibilidade é por sessão: suspender um tablet não suspende outras sessões disponíveis do mesmo operador. Enquanto pelo menos uma delas estiver elegível, o operador pode receber novas pizzas. Suspender recebimento não libera, pausa ou transfere pizzas existentes e não impede montagem/claim manual. Uma nova sessão inicia disponível novamente.
 
-Sessão ativa significa validade operacional no backend, não presença física comprovada ou conexão Socket.IO. Fechar uma aba não encerra automaticamente a sessão; ela pode continuar elegível até logout/expiração. Antes de sair, suspender recebimento e resolver as reservas. Detecção de presença/heartbeat e recuperação supervisionada são evoluções posteriores.
+No escopo original 3D.2C, sessão ativa significava validade operacional no backend: fechar aba não removia elegibilidade até logout/expiração. A 3D.2D substitui esse limite pela exigência de heartbeat recente; preserva reservas e permite recuperação supervisionada. Consulte o documento da nova fase para a regra vigente.
 
 ## Carga e desempate
 
@@ -114,4 +114,4 @@ Regressões preservadas: DEV/catalog/30 pizzas, leitura persistida/snapshot/load
 
 Riscos restantes: sessão abandonada elegível até expiração; disponibilidade de múltiplos tablets; operador indisponível sem supervisor para recuperar reservas; publicação realtime sem outbox recuperada por GET; limites SQLite/timeouts e necessidade de carga real; PIN compartilhado concede a mesma identidade. Sem pesos, SLA, redistribuição silenciosa, dashboard, forno ou finalização.
 
-Próximo ciclo recomendado: validação manual em tablets reais e operação assistida, especialmente disponibilidade/saída de turno e carga concorrente. Depois, recuperação supervisionada de reservas com auditoria e eventual presença/heartbeat. Validar esses aspectos antes de ampliar operação ou introduzir pesos/forno. A Fase 3D.2C permanece local para revisão; não foi commitada ou publicada nesta execução.
+A 3D.2C foi commitada localmente em `e894040`, sem push. A sequência de presença/saída de turno/recuperação foi implementada na 3D.2D; o próximo ciclo é piloto físico assistido para validar disponibilidade, rede e carga antes de avançar para forno. Os riscos acima descrevem a situação no fechamento original desta fase.

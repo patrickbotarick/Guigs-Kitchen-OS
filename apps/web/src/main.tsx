@@ -9,6 +9,7 @@ import { BrandLogo } from './components/BrandLogo';
 import { AssemblyLayout } from './features/kitchen/useAssembly';
 import { KitchenAssemblyPage } from './features/kitchen/pages/KitchenAssemblyPage';
 import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorPage';
+import { KitchenRecoveryPage } from './features/kitchen/pages/KitchenRecoveryPage';
 import './style.css';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
       <Route path="/kitchen" element={<Kitchen />} />
       <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
         <Route index element={<KitchenAssemblyPage />} />
+        <Route path="recovery" element={<KitchenRecoveryPage />} />
         {import.meta.env.DEV && <Route path="dev" element={<KitchenSimulatorPage />} />}
       </Route>
     </Routes></main>

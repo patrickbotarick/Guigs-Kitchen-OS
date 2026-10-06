@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
+import { presencePolicy } from './presence-policy.js';
 
 export type TiePicker = (count: number) => number;
 const mountingStates = ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] as const;
@@ -10,6 +11,7 @@ export async function assignNewOrder(tx: Prisma.TransactionClient, orderId: stri
   const now = new Date();
   const sessions = await tx.operatorSession.findMany({ where: {
     active: true, endedAt: null, expiresAt: { gt: now }, available: true,
+    lastSeenAt: { gt: new Date(now.getTime() - presencePolicy().staleMs), lte: now },
     operator: { active: true }, workstation: { active: true },
   }, orderBy: [{ startedAt: 'desc' }, { id: 'asc' }] });
   // One candidate per operator: multiple tablets do not multiply their chance of selection.

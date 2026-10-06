@@ -22,10 +22,10 @@ export function invalidateSession(token: string) {
   if (localStorage.getItem(sessionStorageKey) === token) { localStorage.removeItem(sessionStorageKey); window.dispatchEvent(new Event(invalidEvent)); }
 }
 export function onInvalidSession(callback: () => void) { window.addEventListener(invalidEvent, callback); return () => window.removeEventListener(invalidEvent, callback); }
-async function call(method: string, credentials?: SessionCredentials, body?: unknown) {
+async function call(method: string, credentials?: SessionCredentials, body?: unknown, path = '/operators/session') {
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(`${apiUrl}/operators/session`, { method, headers: { 'Content-Type': 'application/json', ...(credentials ? sessionHeaders(credentials) : {}) },
+    const response = await fetch(`${apiUrl}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(credentials ? sessionHeaders(credentials) : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: controller.signal, cache: 'no-store' });
     if (response.status === 204) return null;
     const data: unknown = await response.json();
@@ -40,3 +40,6 @@ export async function loginOperator(pin: string) {
 export async function validateOperatorSession(credentials: SessionCredentials): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('GET', credentials)); }
 export async function setOperatorAvailability(credentials: SessionCredentials, available: boolean): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('PATCH', credentials, { available })); }
 export async function endOperatorSession(credentials: SessionCredentials) { await call('DELETE', credentials); invalidateSession(credentials.token); }
+export async function heartbeatOperatorSession(credentials: SessionCredentials): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('POST', credentials, {}, '/operators/session/heartbeat')); }
+export async function recoveryTargets(credentials: SessionCredentials) { return call('GET', credentials, undefined, '/operators/recovery-targets'); }
+export async function recoverPizza(credentials: SessionCredentials, orderId: string, pizzaId: string, input: unknown) { return call('POST', credentials, input, `/orders/v2/${orderId}/pizzas/${pizzaId}/recovery`); }

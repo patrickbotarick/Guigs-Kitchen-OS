@@ -10,7 +10,7 @@
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
     "db:seed": "npm run seed -w @guigs/api",
-    "operator:configure": "npm run operator:configure -w @guigs/api",
+    "operator:configure": "npm run operator:configure -w @guigs/api --",
     "workstation:configure": "npm run workstation:configure -w @guigs/api",
     "db:prepare": "npm run db:ensure && npm run db:generate && npm run db:migrate && npm run db:seed",
     "setup": "node scripts/ensure-env.mjs && npm run db:prepare && node scripts/setup-state.mjs mark",
@@ -26,6 +26,7 @@
     "test:assembly:commands:browser": "node scripts/assembly-commands-browser-smoke.mjs",
     "test:assembly:realtime:browser": "node scripts/assembly-realtime-browser-smoke.mjs",
     "test:assembly:auto-assignment:browser": "node scripts/assembly-auto-assignment-browser-smoke.mjs",
+    "test:assembly:presence:browser": "node scripts/assembly-presence-browser-smoke.mjs",
     "test:structured:browser": "node scripts/structured-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web"
   },

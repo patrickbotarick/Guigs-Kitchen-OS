@@ -23,6 +23,7 @@ function payload(count = 1): CreateStructuredOrderInput {
 }
 async function login(index: number) {
   const deviceKey = randomUUID(), result = await sessions.signIn({ pin: String(6100 + index), workstationDeviceKey: deviceKey }, randomUUID());
+  await sessions.heartbeat({ token: result.token, deviceKey });
   return { auth: { token: result.token, deviceKey }, session: result.session, headers: { Authorization: `Bearer ${result.token}`, 'X-Workstation-Device-Key': deviceKey } };
 }
 async function load() {

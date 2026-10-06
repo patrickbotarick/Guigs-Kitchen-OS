@@ -18,8 +18,8 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
       // This regression intentionally keeps B stale to exercise HTTP 409. Real sockets are tested separately.
       await context.route('**:3333/socket.io/**', route => route.abort());
       context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
-      await context.route('**:3333/operators/session', async route => {
-        const request = route.request(), response = await context.request.fetch(`${apiOrigin}/operators/session`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
+      await context.route('**:3333/operators/session**', async route => {
+        const request = route.request(), response = await context.request.fetch(`${apiOrigin}${new URL(request.url()).pathname}`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
         await route.fulfill({ response });
       });
       await context.route('**:3333/orders/v2**', async route => {

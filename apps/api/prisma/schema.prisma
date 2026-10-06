@@ -259,6 +259,7 @@ model Operator {
   name String @unique
   pinHash String
   active Boolean @default(true)
+  role String @default("ASSEMBLER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions OperatorSession[]
@@ -289,12 +290,28 @@ model OperatorSession {
   expiresAt DateTime
   active Boolean @default(true)
   available Boolean @default(true)
+  lastSeenAt DateTime?
+  presenceStatus String @default("OFFLINE")
+  events OperatorSessionEvent[]
   history PizzaProductionHistory[]
   receipts PizzaCommandReceipt[]
   assignedPizzas PizzaItem[]
 
   @@index([workstationId, active])
   @@index([operatorId, startedAt])
+}
+
+model OperatorSessionEvent {
+  id String @id @default(cuid())
+  sessionId String
+  session OperatorSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  eventType String
+  changedAt DateTime @default(now())
+  presenceStatus String
+  available Boolean
+  metadata Json?
+
+  @@index([sessionId, changedAt])
 }
 
 enum ActorType {

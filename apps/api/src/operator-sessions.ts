@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { operatorLoginSchema, operatorPinSchema, operatorSessionSchema, type OperatorLoginInput } from '@guigs/shared';
+import { presencePolicy, sessionPresence, type PresencePolicy } from './presence-policy.js';
 
 export class OperationalAuthError extends Error {
   constructor() { super('Sessão operacional inválida ou encerrada. Identifique-se novamente.'); }
@@ -29,7 +30,7 @@ export async function verifyOperatorPin(pin: string, encoded: string) {
   if (parts.length !== 6 || parts.slice(0, 4).join('$') !== 'scrypt$16384$8$1' || !/^[a-f0-9]{32}$/.test(parts[4]) || !/^[a-f0-9]{128}$/.test(parts[5])) return false;
   return timingSafeEqual(await derive(pin, Buffer.from(parts[4], 'hex')), Buffer.from(parts[5], 'hex'));
 }
-async function transactionRetry<T>(prisma: PrismaClient, run: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+export async function transactionRetry<T>(prisma: PrismaClient, run: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try { return await prisma.$transaction(run, { timeout: 20000, maxWait: 5000 }); }
     catch (error) {
@@ -40,23 +41,27 @@ async function transactionRetry<T>(prisma: PrismaClient, run: (tx: Prisma.Transa
 }
 
 // Administrative configuration only: no public registration/list-by-PIN endpoint.
-export async function configureOperator(prisma: PrismaClient, input: { name: string; pin: string; active?: boolean }) {
+export async function configureOperator(prisma: PrismaClient, input: { name: string; pin: string; active?: boolean; role?: 'ASSEMBLER' | 'SUPERVISOR' }) {
   const name = input.name.trim(); if (!name || name.length > 80) throw new Error('Nome deve ter entre 1 e 80 caracteres.');
   operatorPinSchema.parse(input.pin); const pinHash = await hashOperatorPin(input.pin);
   return transactionRetry(prisma, async tx => {
     const operators = await tx.operator.findMany();
     for (const operator of operators) if (operator.name !== name && await verifyOperatorPin(input.pin, operator.pinHash)) throw new Error('PIN já utilizado; escolha outro.');
-    const operator = await tx.operator.upsert({ where: { name }, create: { name, pinHash, active: input.active ?? true }, update: { pinHash, active: input.active ?? true } });
+    if (input.role && !['ASSEMBLER', 'SUPERVISOR'].includes(input.role)) throw new Error('Papel operacional inválido.');
+    const operator = await tx.operator.upsert({ where: { name }, create: { name, pinHash, active: input.active ?? true, role: input.role ?? 'ASSEMBLER' }, update: { pinHash, active: input.active ?? true, ...(input.role ? { role: input.role } : {}) } });
     // PIN rotation/deactivation revokes prior credentials, but preserves historical sessions.
-    await tx.operatorSession.updateMany({ where: { operatorId: operator.id, active: true }, data: { active: false, endedAt: new Date() } });
-    return { id: operator.id, name: operator.name, active: operator.active };
+    const previous = await tx.operatorSession.findMany({ where: { operatorId: operator.id, active: true } });
+    const now = new Date();
+    await tx.operatorSession.updateMany({ where: { operatorId: operator.id, active: true }, data: { active: false, endedAt: now, presenceStatus: 'OFFLINE' } });
+    for (const session of previous) await tx.operatorSessionEvent.create({ data: { sessionId: session.id, eventType: 'SESSION_REVOKED', changedAt: now, presenceStatus: 'OFFLINE', available: session.available } });
+    return { id: operator.id, name: operator.name, active: operator.active, role: operator.role };
   });
 }
 
 export class OperatorSessionService {
   private attempts = new Map<string, { count: number; until: number }>();
   private loginBusy = 0;
-  constructor(private readonly prisma: PrismaClient, private readonly lifetimeMs = 12 * 60 * 60 * 1000) {
+  constructor(private readonly prisma: PrismaClient, private readonly lifetimeMs = 12 * 60 * 60 * 1000, private readonly notify: (sessionId: string) => void = () => {}, readonly policy: PresencePolicy = presencePolicy(), private readonly now: () => Date = () => new Date()) {
     if (!Number.isFinite(lifetimeMs) || lifetimeMs <= 0) throw new Error('Duração da sessão inválida.');
   }
   private limit(deviceKey: string, networkKey: string) {
@@ -92,17 +97,23 @@ export class OperatorSessionService {
         const activeClaims = await tx.pizzaItem.count({ where: { assignedWorkstationId: workstation.id, assignedOperatorId: { not: operatorId }, state: { in: ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] } } });
         if (activeClaims) throw new SessionResponsibilityConflictError();
         const now = new Date();
-        await tx.operatorSession.updateMany({ where: { workstationId: workstation.id, active: true }, data: { active: false, endedAt: now } });
+        const previous = await tx.operatorSession.findMany({ where: { workstationId: workstation.id, active: true } });
+        await tx.operatorSession.updateMany({ where: { workstationId: workstation.id, active: true }, data: { active: false, endedAt: now, presenceStatus: 'OFFLINE' } });
+        for (const session of previous) await tx.operatorSessionEvent.create({ data: { sessionId: session.id, eventType: 'SESSION_REPLACED', changedAt: now, presenceStatus: 'OFFLINE', available: session.available } });
         const created = await tx.operatorSession.create({ data: { operatorId, workstationId: workstation.id, tokenHash: tokenHash(token), startedAt: now, expiresAt: new Date(now.getTime() + this.lifetimeMs) }, include: { operator: true, workstation: true } });
+        await tx.operatorSessionEvent.create({ data: { sessionId: created.id, eventType: 'SESSION_STARTED', changedAt: now, presenceStatus: 'OFFLINE', available: true } });
         return this.view(created);
       });
       this.attempts.delete(`device:${deviceKey}`);
+      this.publish(session.sessionId);
       return { session, token };
     } finally { this.loginBusy--; }
   }
-  private view(session: { id: string; operatorId: string; workstationId: string; startedAt: Date; expiresAt: Date; available: boolean; operator: { name: string }; workstation: { name: string } }) {
+  private publish(sessionId: string) { try { this.notify(sessionId); } catch (error) { console.error('Falha na notificação operacional após commit:', error); } }
+  private view(session: Prisma.OperatorSessionGetPayload<{ include: { operator: true; workstation: true } }>) {
     return operatorSessionSchema.parse({ sessionId: session.id, operatorId: session.operatorId, operatorName: session.operator.name,
-      workstationId: session.workstationId, workstationName: session.workstation.name, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), available: session.available });
+      workstationId: session.workstationId, workstationName: session.workstation.name, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), available: session.available,
+      role: session.operator.role, lastSeenAt: session.lastSeenAt?.toISOString() ?? null, presenceStatus: sessionPresence(session, this.now(), this.policy), heartbeatIntervalMs: this.policy.heartbeatMs });
   }
   async validate(credentials: SessionCredentials | undefined, db: SessionDatabase = this.prisma) {
     if (!credentials || !/^[a-f0-9]{64}$/.test(credentials.token) || !credentials.deviceKey) throw new OperationalAuthError();
@@ -112,17 +123,55 @@ export class OperatorSessionService {
   }
   async current(credentials: SessionCredentials) { return (await this.validate(credentials)).view; }
   async setAvailability(credentials: SessionCredentials, available: boolean) {
-    return transactionRetry(this.prisma, async tx => {
+    const result = await transactionRetry(this.prisma, async tx => {
       const actor = await this.validate(credentials, tx);
       const session = await tx.operatorSession.update({ where: { id: actor.sessionId }, data: { available }, include: { operator: true, workstation: true } });
+      if (actor.view.available !== available) await tx.operatorSessionEvent.create({ data: { sessionId: actor.sessionId, eventType: 'AVAILABILITY_CHANGED', changedAt: this.now(), presenceStatus: sessionPresence(session, this.now(), this.policy), available } });
       return this.view(session);
     });
+    this.publish(result.sessionId); return result;
+  }
+  async heartbeat(credentials: SessionCredentials) {
+    const result = await transactionRetry(this.prisma, async tx => {
+      const actor = await this.validate(credentials, tx), now = this.now();
+      const previous = await tx.operatorSession.findUniqueOrThrow({ where: { id: actor.sessionId } });
+      // Record the gap even if the periodic sweep was unavailable (e.g. API restart).
+      const elapsed = previous.lastSeenAt ? now.getTime() - previous.lastSeenAt.getTime() : 0;
+      if (previous.presenceStatus === 'ONLINE' && elapsed >= this.policy.staleMs) await tx.operatorSessionEvent.create({ data: { sessionId: actor.sessionId, eventType: 'PRESENCE_CHANGED', changedAt: new Date(previous.lastSeenAt!.getTime() + this.policy.staleMs), presenceStatus: 'STALE', available: previous.available } });
+      if (elapsed >= this.policy.offlineMs && previous.lastSeenAt && previous.presenceStatus !== 'OFFLINE') await tx.operatorSessionEvent.create({ data: { sessionId: actor.sessionId, eventType: 'PRESENCE_CHANGED', changedAt: new Date(previous.lastSeenAt.getTime() + this.policy.offlineMs), presenceStatus: 'OFFLINE', available: previous.available } });
+      const session = await tx.operatorSession.update({ where: { id: actor.sessionId }, data: { lastSeenAt: now, presenceStatus: 'ONLINE' }, include: { operator: true, workstation: true } });
+      const changed = previous.presenceStatus !== 'ONLINE' || actor.view.presenceStatus !== 'ONLINE';
+      if (changed) await tx.operatorSessionEvent.create({ data: { sessionId: actor.sessionId, eventType: 'PRESENCE_CHANGED', changedAt: now, presenceStatus: 'ONLINE', available: session.available } });
+      return { view: this.view(session), changed };
+    });
+    if (result.changed) this.publish(result.view.sessionId); return result.view;
+  }
+  async sweepPresence() {
+    const sessions = await this.prisma.operatorSession.findMany({ where: { presenceStatus: { not: 'OFFLINE' } }, include: { operator: true, workstation: true } });
+    for (const session of sessions) {
+      const now = this.now(), status = sessionPresence(session, now, this.policy);
+      if (status === session.presenceStatus) continue;
+      const changed = await transactionRetry(this.prisma, async tx => {
+        const updated = await tx.operatorSession.updateMany({ where: { id: session.id, lastSeenAt: session.lastSeenAt, presenceStatus: session.presenceStatus, active: session.active, endedAt: session.endedAt, expiresAt: session.expiresAt, available: session.available, operator: { active: session.operator.active }, workstation: { active: session.workstation.active } }, data: { presenceStatus: status } });
+        if (!updated.count) return false;
+        const timeoutOnly = session.lastSeenAt && session.lastSeenAt <= now && session.active && !session.endedAt && session.expiresAt > now && session.operator.active && session.workstation.active;
+        if (timeoutOnly && session.presenceStatus === 'ONLINE' && status === 'OFFLINE') await tx.operatorSessionEvent.create({ data: { sessionId: session.id, eventType: 'PRESENCE_CHANGED', changedAt: new Date(session.lastSeenAt!.getTime() + this.policy.staleMs), presenceStatus: 'STALE', available: session.available } });
+        const changedAt = timeoutOnly ? new Date(session.lastSeenAt!.getTime() + (status === 'STALE' ? this.policy.staleMs : this.policy.offlineMs)) : session.expiresAt <= now ? session.expiresAt : now;
+        await tx.operatorSessionEvent.create({ data: { sessionId: session.id, eventType: 'PRESENCE_CHANGED', changedAt, presenceStatus: status, available: session.available } });
+        return true;
+      });
+      if (changed) this.publish(session.id);
+    }
   }
   async end(credentials: SessionCredentials) {
-    return transactionRetry(this.prisma, async tx => {
+    const ended = await transactionRetry(this.prisma, async tx => {
       const session = await this.validate(credentials, tx);
       if (await tx.pizzaItem.count({ where: { assignedOperatorId: session.operatorId, state: { in: ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] } } })) throw new SessionResponsibilityConflictError();
-      await tx.operatorSession.update({ where: { id: session.sessionId }, data: { active: false, endedAt: new Date() } });
+      const now = this.now();
+      await tx.operatorSession.update({ where: { id: session.sessionId }, data: { active: false, endedAt: now, presenceStatus: 'OFFLINE' } });
+      await tx.operatorSessionEvent.create({ data: { sessionId: session.sessionId, eventType: 'SHIFT_ENDED', changedAt: now, presenceStatus: 'OFFLINE', available: session.view.available } });
+      return session.sessionId;
     });
+    this.publish(ended);
   }
 }

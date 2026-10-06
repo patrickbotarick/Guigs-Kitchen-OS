@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { seedOperatorFixtures } from './operator-fixtures.mjs';
 
-export async function withIsolatedApi(port, run, { webOrigin, operatorFixtures = false } = {}) {
+export async function withIsolatedApi(port, run, { webOrigin, operatorFixtures = false, serverEnv = {} } = {}) {
   const root = resolve('.');
   const dbPath = resolve(root, `apps/api/prisma/test-assembly-read-${randomUUID()}.db`);
   const databaseUrl = `file:${dbPath.replaceAll('\\', '/')}`;
@@ -17,7 +17,7 @@ export async function withIsolatedApi(port, run, { webOrigin, operatorFixtures =
     }
   }
   async function start() {
-    server = spawn(process.execPath, ['apps/api/dist/server.js'], { cwd: root, env: { ...process.env, ...(webOrigin ? { WEB_ORIGIN: webOrigin } : {}), DATABASE_URL: databaseUrl, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    server = spawn(process.execPath, ['apps/api/dist/server.js'], { cwd: root, env: { ...process.env, ...serverEnv, ...(webOrigin ? { WEB_ORIGIN: webOrigin } : {}), DATABASE_URL: databaseUrl, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     await new Promise((ready, reject) => {
       const timer = setTimeout(() => reject(new Error('API isolada não iniciou')), 10000);
       server.once('exit', code => { clearTimeout(timer); reject(new Error(`API isolada encerrou: ${code}`)); });

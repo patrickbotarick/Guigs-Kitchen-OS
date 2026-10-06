@@ -9,6 +9,7 @@ import { OrderService } from './orders.js';
 import { StructuredOrderService } from './structured-orders.js';
 import { PizzaCommandService } from './pizza-commands.js';
 import { OperatorSessionService } from './operator-sessions.js';
+import { SupervisorRecoveryService } from './supervisor-recovery.js';
 
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
@@ -25,16 +26,25 @@ const allowedOrigin = (origin: string | undefined, callback: (error: Error | nul
 };
 const prisma = new PrismaClient();
 const orders = new OrderService(prisma);
-const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload), new OperatorSessionService(prisma, Number(process.env.OPERATOR_SESSION_HOURS || 12) * 60 * 60 * 1000));
+const operators = new OperatorSessionService(prisma, Number(process.env.OPERATOR_SESSION_HOURS || 12) * 60 * 60 * 1000, sessionId => io.emit('operators.changed', { sessionId }));
+const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload), operators, new SupervisorRecoveryService(prisma, operators));
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: allowedOrigin } });
 
 server.listen(port, () => console.info(`API em http://localhost:${port}`));
+let presenceSweep: Promise<void> | undefined;
+const presenceTimer = setInterval(() => {
+  if (presenceSweep) return;
+  presenceSweep = operators.sweepPresence().catch(error => console.error('Falha ao atualizar presença:', error)).finally(() => { presenceSweep = undefined; });
+}, Math.min(operators.policy.heartbeatMs, 10000));
+presenceTimer.unref();
 
 async function shutdown() {
   console.info('Encerrando API...');
+  clearInterval(presenceTimer);
   io.close();
   server.close();
+  await presenceSweep;
   await prisma.$disconnect();
 }
 process.once('SIGINT', shutdown);

@@ -121,7 +121,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     console.info('API reiniciada no mesmo SQLite: ambos reconectam, consultam estado persistido e retomam realtime.');
     await action(pageA, pageB, 'Retomar', 'Pausar');
     await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
-    await pageA.getByText('Há pizzas sob sua responsabilidade. Pause e libere as pizzas antes de trocar montador.', { exact: true }).waitFor();
+    await pageA.getByText('Há pizzas sob sua responsabilidade. Pause e libere as pizzas, ou solicite recuperação ao supervisor, antes de trocar montador ou encerrar turno.', { exact: true }).waitFor();
     const blockedLogout = await pageA.request.delete(`${apiOrigin}/operators/session`, { headers: await authHeaders(pageA) }); assert.equal(blockedLogout.status(), 409);
     await pageA.getByRole('button', { name: 'Continuar montando', exact: true }).click();
     await action(pageA, pageB, 'Pausar', 'Retomar');

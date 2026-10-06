@@ -2,7 +2,7 @@
 
 Protótipo local da operação da cozinha: criar pedidos fictícios, persistir em SQLite, avançar por estados validados e acompanhar o histórico em tempo real. O escopo e as fases futuras estão em [BASE_DO_PROJETO.md](BASE_DO_PROJETO.md).
 
-A **Fila de Montagem** é um módulo para tablets dentro deste frontend: lê pedidos v2 persistidos, executa comandos autenticados por PIN e sincroniza por realtime. Inclui responsabilidade por pizza e, na Fase 3D.2C, distribui novas pizzas pela menor carga dos operadores disponíveis, com sorteio em empate. Abre em Minhas pizzas; Fila geral e Disponíveis continuam acessíveis. O simulador local permanece separado em modo DEV. [Regras de responsabilidade](docs/PHASE_3D2B_PIZZA_RESPONSIBILITY.md) e [distribuição automática](docs/PHASE_3D2C_AUTO_ASSIGNMENT.md).
+A **Fila de Montagem** é um módulo para tablets dentro deste frontend: lê pedidos v2 persistidos, executa comandos autenticados por PIN e sincroniza por realtime. Inclui responsabilidade por pizza e distribui novas pizzas pela menor carga dos operadores disponíveis, com sorteio em empate. A Fase 3D.2D exige presença recente por heartbeat e acrescenta encerramento de turno e recuperação auditada por supervisor. Abre em Minhas pizzas; Fila geral e Disponíveis continuam acessíveis. O simulador local permanece separado em modo DEV. [Responsabilidade](docs/PHASE_3D2B_PIZZA_RESPONSIBILITY.md), [distribuição](docs/PHASE_3D2C_AUTO_ASSIGNMENT.md) e [presença/recuperação](docs/PHASE_3D2D_PRESENCE_RECOVERY.md).
 
 ## Requisitos
 
@@ -199,3 +199,11 @@ Fase 3D.1 fechada no commit local `10b1cf6`. Assembly real exige PIN numérico (
 Migration aditiva cria Operator/Workstation/OperatorSession e vínculos históricos, sem reescrever autoria anterior. **Antes do primeiro uso real, cadastre os montadores com `npm run operator:configure`**, que pede PIN mascarado. Não existem operadores/PINs padrão na loja. `npm run workstation:configure` permite nomear terminal após primeiro login válido. Sessão padrão 12 horas (`OPERATOR_SESSION_HOURS`).
 
 O teste realtime também valida dois montadores, PIN touch, refresh, troca e autoria preservada. Modelo, configuração, segurança, base de métricas e roadmap sem distribuição automática em [PHASE_3D2A_OPERATOR_IDENTITY.md](docs/PHASE_3D2A_OPERATOR_IDENTITY.md).
+
+## Fase 3D.2D — presença e recuperação supervisionada
+
+3D.2C fechada no commit `e894040`. Assembly real envia heartbeat autenticado a cada 20 segundos; STALE após 60 segundos já impede novas atribuições e OFFLINE após 120 segundos. Limites configuráveis no backend. Fechar aba/perder rede não libera pizzas existentes. Encerrar turno bloqueia com pendências e, sem elas, registra fim da sessão e volta ao PIN.
+
+Supervisor configurado administrativamente com `npm run operator:configure -- --supervisor` acessa `/kitchen/assembly/recovery`: pausa explícita, liberação ou reassign com motivo, CAS, idempotência e auditoria. Novo responsável deve estar disponível e online; montagem ativa exige pausa antes de recuperar. Não existe supervisor/PIN padrão na loja. Os comandos `--assembler` removem o papel; sem flag, papel existente é preservado. Banco recebeu migration aditiva com backup e verificação de preservação/integridade.
+
+`npm run test:assembly:presence:browser` valida três tablets com perda de rede/aba, exclusão da distribuição, reservas preservadas, recuperação pela UI, histórico/realtime, retorno e API reiniciada, além de encerramento livre/bloqueado. Detalhes, limites, testes e piloto físico em [PHASE_3D2D_PRESENCE_RECOVERY.md](docs/PHASE_3D2D_PRESENCE_RECOVERY.md). Forno operacional e finalização ainda não foram implementados.

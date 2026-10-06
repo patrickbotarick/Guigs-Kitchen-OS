@@ -13,8 +13,8 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     // HTTP-only snapshot/read regression; avoid connecting to the store's unrelated Socket.IO server.
     await context.route('**:3333/socket.io/**', route => route.abort());
-    await context.route('**:3333/operators/session', async route => {
-      const request = route.request(), response = await context.request.fetch(`${apiOrigin}/operators/session`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
+    await context.route('**:3333/operators/session**', async route => {
+      const request = route.request(), response = await context.request.fetch(`${apiOrigin}${new URL(request.url()).pathname}`, { method: request.method(), headers: request.headers(), ...(request.postData() ? { data: request.postData() } : {}) });
       await route.fulfill({ response });
     });
     let fail = false, slow = true, release;
