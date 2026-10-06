@@ -44,7 +44,7 @@ export function useOperatorSession() {
     try { await endOperatorSession(credentials); }
     catch (cause) {
       if (cause instanceof OperatorApiError && cause.status === 401) invalidateSession(credentials.token);
-      else if (alive.current) setError('Não foi possível encerrar a sessão. Tente novamente.');
+      else if (alive.current) setError(cause instanceof OperatorApiError ? cause.message : 'Não foi possível encerrar a sessão. Tente novamente.');
     } finally { operationBusy.current = false; if (alive.current) setBusy(false); }
   }
   return { session, credentials, checking, busy, error, login, end, refresh };

@@ -41,6 +41,110 @@ beforeAll(async () => {
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
 
 describe('comandos persistentes por pizza', () => {
+  async function secondActor(sameOperator = false) {
+    if (!sameOperator) await configureOperator(prisma, { name: 'Outro montador fixture', pin: '5938' });
+    const deviceKey = randomUUID(), result = await new OperatorSessionService(prisma).signIn({ pin: sameOperator ? '4851' : '5938', workstationDeviceKey: deviceKey });
+    return { auth: { token: result.token, deviceKey }, session: result.session, headers: { Authorization: `Bearer ${result.token}`, 'X-Workstation-Device-Key': deviceKey } };
+  }
+  it('claim preserva estado/agregação, registra identidade e pode ser lido novamente', async () => {
+    const order = await fresh(), payload = input(order, 'CLAIM_PIZZA'), start = notifications.length;
+    const response = await request(app).post(endpoint(order)).set(authHeaders).send(payload);
+    expect(response.status).toBe(200); const item = response.body.order.items[0];
+    expect(item.assignment).toMatchObject({ operatorId, workstationId });
+    expect(item.production).toMatchObject({ state: 'WAITING_ASSEMBLY', version: 1, assemblyStartedAt: null });
+    expect(response.body.order.status).toBe('WAITING_PRODUCTION');
+    expect((await take(order.id)).order?.productionStartedAt).toBeNull();
+    expect(await creation.get(order.id)).toEqual(response.body.order);
+    expect((await take(order.id)).history.at(-1)).toMatchObject({ eventType: 'CLAIMED', operatorId, workstationId, itemVersion: 1 });
+    expect(notifications.slice(start).map(event => event.type)).toEqual(['kitchen.pizza.updated', 'kitchen.order.updated']);
+  });
+  it('claim repetido pelo mesmo operador não altera data/versão nem duplica evento', async () => {
+    const order = await fresh(), payload = input(order, 'CLAIM_PIZZA');
+    const first = await execute(order.id, order.items[0].id, payload), before = await take(order.id);
+    expect((await execute(order.id, order.items[0].id, payload)).replayed).toBe(true);
+    expect((await execute(order.id, order.items[0].id, input(first.order, 'CLAIM_PIZZA'))).replayed).toBe(true);
+    const after = await take(order.id); expect(after.pizzas).toEqual(before.pizzas); expect(after.history).toEqual(before.history);
+  });
+  it('dois operadores disputam a mesma pizza: somente um claim vence', async () => {
+    const other = await secondActor(), order = await fresh();
+    const results = await Promise.all([request(app).post(endpoint(order)).set(authHeaders).send(input(order, 'CLAIM_PIZZA')), request(app).post(endpoint(order)).set(other.headers).send(input(order, 'CLAIM_PIZZA'))]);
+    expect(results.map(result => result.status).sort()).toEqual([200, 409]);
+    const saved = await take(order.id); expect(saved.pizzas[0].version).toBe(1); expect(saved.history.filter(event => event.eventType === 'CLAIMED')).toHaveLength(1); expect(saved.receipts).toHaveLength(1);
+  });
+  it.each(['CLAIM_PIZZA', 'RELEASE_PIZZA', 'START_ASSEMBLY'] as const)('outro operador não executa %s em pizza reservada', async command => {
+    const other = await secondActor(), order = await fresh();
+    const assigned = (await execute(order.id, order.items[0].id, input(order, 'CLAIM_PIZZA'))).order, before = await take(order.id);
+    expect((await request(app).post(endpoint(order)).set(other.headers).send(input(assigned, command))).status).toBe(409); expect(await take(order.id)).toEqual(before);
+  });
+  it.each(['PAUSE_ASSEMBLY', 'SEND_TO_OVEN'] as const)('outro operador não executa %s em montagem', async command => {
+    const other = await secondActor(), order = await fresh(); const started = (await execute(order.id, order.items[0].id, input(order, 'START_ASSEMBLY'))).order, before = await take(order.id);
+    expect((await request(app).post(endpoint(order)).set(other.headers).send(input(started, command))).status).toBe(409); expect(await take(order.id)).toEqual(before);
+  });
+  it('release exige pausa, mantém timestamps e permite novo responsável', async () => {
+    const other = await secondActor(), order = await fresh(); let current = (await execute(order.id, order.items[0].id, input(order, 'START_ASSEMBLY'))).order;
+    await expect(execute(order.id, order.items[0].id, input(current, 'RELEASE_PIZZA'))).rejects.toThrow('Pause');
+    current = (await execute(order.id, order.items[0].id, input(current, 'PAUSE_ASSEMBLY'))).order;
+    const pausedAt = current.items[0].kind === 'PIZZA' ? current.items[0].production.pausedAt : null;
+    const payload = input(current, 'RELEASE_PIZZA'); current = (await execute(order.id, order.items[0].id, payload)).order;
+    expect(current.items[0]).toMatchObject({ assignment: null, production: { state: 'ASSEMBLY_PAUSED', pausedAt }, releasedAt: expect.any(String) });
+    expect((await execute(order.id, order.items[0].id, payload)).replayed).toBe(true);
+    await expect(execute(order.id, order.items[0].id, input(current, 'RESUME_ASSEMBLY'))).rejects.toThrow('Assuma');
+    current = (await commands.execute(order.id, order.items[0].id, input(current, 'CLAIM_PIZZA'), other.auth)).order;
+    await commands.execute(order.id, order.items[0].id, input(current, 'RESUME_ASSEMBLY'), other.auth);
+    expect((await take(order.id)).history.filter(event => event.eventType === 'RELEASED')).toHaveLength(1);
+    expect((await take(order.id)).history.at(-1)?.operatorId).toBe(other.session.operatorId);
+  });
+  it('duas sessões do mesmo operador podem operar; versão continua protegida', async () => {
+    const other = await secondActor(true), order = await fresh();
+    const current = (await execute(order.id, order.items[0].id, input(order, 'START_ASSEMBLY'))).order;
+    const result = await commands.execute(order.id, order.items[0].id, input(current, 'PAUSE_ASSEMBLY'), other.auth);
+    expect(result.order.items[0]).toMatchObject({ assignment: { operatorId, workstationId }, production: { state: 'ASSEMBLY_PAUSED' } });
+    expect((await take(order.id)).history.at(-1)).toMatchObject({ operatorSessionId: other.session.sessionId, workstationId: other.session.workstationId });
+  });
+  it('start livre faz claim e montagem com uma única versão e transação', async () => {
+    const order = await fresh(), payload = input(order, 'START_ASSEMBLY'); const result = await execute(order.id, order.items[0].id, payload);
+    expect(result.order.items[0]).toMatchObject({ assignment: { operatorId }, production: { version: 1, state: 'ASSEMBLING' } });
+    const events = (await take(order.id)).history.filter(event => event.itemVersion === 1);
+    expect(events.map(event => event.eventType).sort()).toEqual(['CLAIMED', 'START_ASSEMBLY']); expect(events[0].changedAt).toEqual(events[1].changedAt);
+  });
+  it('sessão inválida não assume pizza', async () => {
+    const order = await fresh(), before = await take(order.id);
+    expect((await request(app).post(endpoint(order)).send(input(order, 'CLAIM_PIZZA'))).status).toBe(401); expect(await take(order.id)).toEqual(before);
+  });
+  it('reserva bloqueia logout em espera/montagem/pausa e troca por outro PIN; liberação explícita permite logout', async () => {
+    await configureOperator(prisma, { name: 'Sessão reserva fixture', pin: '6049' });
+    const sessions = new OperatorSessionService(prisma), deviceKey = randomUUID();
+    const signed = await sessions.signIn({ pin: '6049', workstationDeviceKey: deviceKey }); const credentials = { token: signed.token, deviceKey };
+    const order = await fresh(); const run = async (current: Order, command: PizzaCommandInput['command']) => (await commands.execute(order.id, order.items[0].id, input(current, command), credentials)).order;
+    let current = await run(order, 'CLAIM_PIZZA');
+    await expect(sessions.end(credentials)).rejects.toThrow('responsabilidade');
+    await expect(sessions.signIn({ pin: '4851', workstationDeviceKey: deviceKey })).rejects.toThrow('responsabilidade');
+    current = await run(current, 'START_ASSEMBLY'); await expect(sessions.end(credentials)).rejects.toThrow('responsabilidade');
+    current = await run(current, 'PAUSE_ASSEMBLY'); await expect(sessions.end(credentials)).rejects.toThrow('responsabilidade');
+    await run(current, 'RELEASE_PIZZA'); await sessions.end(credentials);
+    expect((await prisma.operatorSession.findUniqueOrThrow({ where: { id: signed.session.sessionId } })).active).toBe(false);
+  });
+  it('expiração não libera reserva; mesmo operador recupera em nova sessão e outro não retoma', async () => {
+    const other = await secondActor(true), order = await fresh(); const assigned = (await commands.execute(order.id, order.items[0].id, input(order, 'START_ASSEMBLY'), other.auth)).order;
+    await prisma.operatorSession.update({ where: { id: other.session.sessionId }, data: { expiresAt: new Date(Date.now() - 1) } });
+    const stored = (await take(order.id)).pizzas[0]; expect(stored.assignedOperatorId).toBe(operatorId);
+    await expect(commands.execute(order.id, order.items[0].id, input(assigned, 'PAUSE_ASSEMBLY'), other.auth)).rejects.toThrow('Sessão operacional');
+    const recovered = await new OperatorSessionService(prisma).signIn({ pin: '4851', workstationDeviceKey: other.auth.deviceKey });
+    const result = await commands.execute(order.id, order.items[0].id, input(assigned, 'PAUSE_ASSEMBLY'), { token: recovered.token, deviceKey: other.auth.deviceKey });
+    expect(result.order.items[0]).toMatchObject({ assignment: { operatorId, sessionId: other.session.sessionId }, production: { state: 'ASSEMBLY_PAUSED' } });
+  });
+  it('outro operador não retoma pizza pausada', async () => {
+    const other = await secondActor(), order = await fresh(); const started = (await execute(order.id, order.items[0].id, input(order, 'START_ASSEMBLY'))).order;
+    const paused = (await execute(order.id, order.items[0].id, input(started, 'PAUSE_ASSEMBLY'))).order, before = await take(order.id);
+    expect((await request(app).post(endpoint(order)).set(other.headers).send(input(paused, 'RESUME_ASSEMBLY'))).status).toBe(409); expect(await take(order.id)).toEqual(before);
+  });
+  it.each(['CLAIM_PIZZA', 'RELEASE_PIZZA'] as const)('rollback de %s preserva assignment, histórico e receipt', async command => {
+    const order = await fresh(); const current = command === 'RELEASE_PIZZA' ? (await execute(order.id, order.items[0].id, input(order, 'CLAIM_PIZZA'))).order : order;
+    const before = await take(order.id), eventCount = notifications.length;
+    await prisma.$executeRawUnsafe('CREATE TRIGGER fail_claim BEFORE INSERT ON "PizzaCommandReceipt" BEGIN SELECT RAISE(ABORT, \'claim failed\'); END');
+    try { expect((await request(app).post(endpoint(order)).set(authHeaders).send(input(current, command))).status).toBe(500); expect(await take(order.id)).toEqual(before); expect(notifications.length).toBe(eventCount); }
+    finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_claim'); }
+  });
   it('inicia, pausa, retoma e envia ao forno com versões, timestamps e histórico', async () => {
     let order = await fresh(); const queued = (await take(order.id)).pizzas[0].queuedAt;
     let started: string | null = null;
@@ -63,7 +167,7 @@ describe('comandos persistentes por pizza', () => {
     }
     expect(order.status).toBe('OVEN');
     expect((await creation.get(order.id))).toEqual(order);
-    expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId: order.items[0].id } })).toBe(5);
+    expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId: order.items[0].id } })).toBe(6);
     const persisted = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
     expect(persisted.ovenStartedAt).toBeNull(); expect(persisted.productionFinishedAt).toBeNull();
   });
@@ -104,7 +208,7 @@ describe('comandos persistentes por pizza', () => {
     const responses = await Promise.all([request(app).post(endpoint(order)).set(authHeaders).send(input(order, 'START_ASSEMBLY')), request(app).post(endpoint(order)).set(authHeaders).send(input(order, 'START_ASSEMBLY'))]);
     expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
     expect((await take(order.id)).pizzas[0].version).toBe(1);
-    expect((await take(order.id)).history).toHaveLength(2);
+    expect((await take(order.id)).history).toHaveLength(3);
   });
   it('mesmo comando simultâneo cria só um histórico e um receipt', async () => {
     const order = await fresh(), payload = input(order, 'START_ASSEMBLY');

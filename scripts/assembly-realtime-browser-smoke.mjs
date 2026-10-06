@@ -58,19 +58,42 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
       await target.getByRole('button', { name: expected, exact: true }).waitFor({ timeout: 5000 });
     }
     await action(pageA, pageB, 'Iniciar montagem', 'Pausar');
-    await action(pageB, pageA, 'Pausar', 'Retomar');
+    assert.equal(await pageB.getByRole('button', { name: 'Pausar', exact: true }).isDisabled(), true);
+    await pageB.getByText('Montador: João fixture', { exact: true }).first().waitFor();
+    await pageA.screenshot({ path: resolve(screenshots, 'assembly-assignment-tablet.png') });
+    await action(pageA, pageB, 'Pausar', 'Retomar');
     await action(pageA, pageB, 'Retomar', 'Pausar');
-    await pageB.getByRole('button', { name: /Enviar pro forno/ }).click();
+    await pageA.getByRole('button', { name: /Enviar pro forno/ }).click();
     for (const page of [pageA, pageB]) await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor({ timeout: 5000 });
     const saved = await (await a.request.get(`${apiOrigin}/orders/v2/${order.id}`)).json();
     assert.equal(saved.status, 'OVEN'); assert.equal(saved.items[0].production.state, 'WAITING_OVEN'); assert.equal(saved.version, 4);
     assert.equal(await prisma.pizzaCommandReceipt.count({ where: { orderId: order.id } }), 4);
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: order.items[0].id }, orderBy: { itemVersion: 'asc' } });
     const joao = identities.find(session => session.operator.name === operatorFixtures[0].name), carlos = identities.find(session => session.operator.name === operatorFixtures[1].name);
-    assert.deepEqual(history.slice(1).map(event => [event.operatorId, event.workstationId, event.operatorSessionId]), [joao, carlos, joao, carlos].map(session => [session.operatorId, session.workstationId, session.id]));
+    assert.deepEqual(history.slice(1).map(event => [event.operatorId, event.workstationId, event.operatorSessionId]), Array.from({ length: 5 }, () => [joao.operatorId, joao.workstationId, joao.id]));
     for (const [index, page] of [pageA, pageB].entries()) { await page.reload(); await page.getByLabel('Identidade operacional', { exact: true }).waitFor(); assert.match(await page.getByLabel('Identidade operacional', { exact: true }).innerText(), new RegExp(operatorFixtures[index].name)); }
     assert.equal(await prisma.operatorSession.count(), 2, 'Refresh valida a sessão existente; não cria outra');
-    console.info('Balcão → fila imediato e A iniciar → B pausar → A retomar → B enviar aprovados, sem refresh manual.');
+    console.info('Start assume atomicamente; João opera e Carlos visualiza com ações bloqueadas. Histórico e refresh aprovados.');
+
+    const contested = await create('Claim concorrente');
+    for (const page of [pageA, pageB]) await page.getByRole('heading', { name: `Pedido #${contested.number}`, exact: true }).waitFor();
+    const authHeaders = page => page.evaluate(() => ({ Authorization: `Bearer ${localStorage.getItem('guigs-operator-session-token')}`, 'X-Workstation-Device-Key': localStorage.getItem('guigs-workstation-device-key') }));
+    const commandUrl = `${apiOrigin}/orders/v2/${contested.id}/pizzas/${contested.items[0].id}/commands`;
+    const responses = await Promise.all([pageA, pageB].map(async page => page.request.post(commandUrl, { headers: await authHeaders(page), data: { command: 'CLAIM_PIZZA', expectedState: 'WAITING_ASSEMBLY', expectedVersion: 0, clientCommandId: crypto.randomUUID() } })));
+    assert.deepEqual(responses.map(response => response.status()).sort(), [200, 409]);
+    const winner = responses[0].status() === 200 ? pageA : pageB, loser = winner === pageA ? pageB : pageA;
+    await winner.getByText(/Montador: .*Sua pizza/).waitFor({ timeout: 5000 });
+    await loser.waitForFunction(() => document.querySelector('.ka-start')?.disabled === true);
+    const claimed = await (await a.request.get(`${apiOrigin}/orders/v2/${contested.id}`)).json();
+    assert.equal(claimed.items[0].production.version, 1);
+    await winner.reload(); await winner.getByText(/Montador: .*Sua pizza/).waitFor();
+    await winner.getByRole('button', { name: 'Liberar pizza', exact: true }).click();
+    await loser.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
+    await loser.waitForFunction(() => !document.querySelector('.ka-start')?.disabled);
+    await action(loser, winner, 'Iniciar montagem', 'Pausar');
+    await loser.getByRole('button', { name: /Enviar pro forno/ }).click();
+    for (const page of [pageA, pageB]) await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
+    console.info('Dois tablets disputam claim: um 200 e um 409; reserva/release propagados por realtime e preservados após refresh.');
 
     const second = await create('Reconexão real');
     for (const page of [pageA, pageB]) await page.getByRole('heading', { name: `Pedido #${second.number}`, exact: true }).waitFor({ timeout: 5000 });
@@ -90,20 +113,35 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     await pageA.waitForFunction(() => !document.querySelector('.ka-queue-footer button')?.disabled);
     await pageB.waitForFunction(() => !document.querySelector('.ka-queue-footer button')?.disabled);
     assert.ok(readsA > beforeRestartA && readsB > beforeRestartB, 'Ambos devem ressincronizar após reinício');
-    await action(pageB, pageA, 'Pausar', 'Retomar');
+    await action(pageA, pageB, 'Pausar', 'Retomar');
     console.info('API reiniciada no mesmo SQLite: ambos reconectam, consultam estado persistido e retomam realtime.');
     await action(pageA, pageB, 'Retomar', 'Pausar');
     await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
-    await pageA.getByText('Há pizzas em montagem. A troca preserva o histórico e não reatribui pedidos.', { exact: true }).waitFor();
-    await pageA.getByRole('button', { name: 'Confirmar troca', exact: true }).click();
+    await pageA.getByText('Há pizzas sob sua responsabilidade. Pause e libere as pizzas antes de trocar montador.', { exact: true }).waitFor();
+    const blockedLogout = await pageA.request.delete(`${apiOrigin}/operators/session`, { headers: await authHeaders(pageA) }); assert.equal(blockedLogout.status(), 409);
+    await pageA.getByRole('button', { name: 'Continuar montando', exact: true }).click();
+    await action(pageA, pageB, 'Pausar', 'Retomar');
+    await pageA.getByRole('button', { name: 'Liberar pizza', exact: true }).click();
+    await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
+    await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
     await loginPin(pageA, operatorFixtures[1].pin);
     assert.match(await pageA.getByLabel('Identidade operacional', { exact: true }).innerText(), /Carlos fixture/);
-    await action(pageA, pageB, 'Pausar', 'Retomar');
+    await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).click();
+    await pageA.getByRole('button', { name: 'Liberar pizza', exact: true }).waitFor();
+    const sameOperatorTab = await a.newPage(); await sameOperatorTab.goto(`${webOrigin}/kitchen/assembly`);
+    await sameOperatorTab.getByText(/Montador: Carlos fixture.*Sua pizza/).waitFor();
+    await action(sameOperatorTab, pageB, 'Retomar', 'Pausar');
+    await action(pageB, pageA, 'Pausar', 'Retomar');
+    await pageA.getByRole('button', { name: 'Minhas pizzas', exact: true }).click();
+    await pageA.getByRole('heading', { name: `Pedido #${second.number}`, exact: true }).waitFor();
+    await pageA.getByRole('button', { name: 'Disponíveis', exact: true }).click();
+    await pageA.getByRole('heading', { name: 'Nenhuma pizza neste filtro', exact: true }).waitFor();
+    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
     const changedHistory = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: second.items[0].id }, orderBy: { itemVersion: 'asc' } });
     assert.equal(changedHistory[1].operatorId, joao.operatorId);
     assert.equal(changedHistory.at(-1).operatorId, carlos.operatorId);
-    assert.equal(changedHistory.at(-1).workstationId, joao.workstationId);
-    assert.notEqual(changedHistory.at(-1).operatorSessionId, joao.id);
+    assert.equal(changedHistory.at(-1).workstationId, carlos.workstationId);
+    assert.equal(changedHistory.at(-1).operatorSessionId, carlos.id);
     assert.equal((await prisma.operatorSession.findUniqueOrThrow({ where: { id: joao.id } })).active, false);
     assert.deepEqual(await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: order.items[0].id }, orderBy: { itemVersion: 'asc' } }), history, 'Histórico anterior permanece intacto após troca');
     await pageA.reload(); await pageA.getByLabel('Identidade operacional', { exact: true }).waitFor(); assert.match(await pageA.getByLabel('Identidade operacional', { exact: true }).innerText(), /Carlos fixture/);
@@ -113,7 +151,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     assert.equal(await pageA.evaluate(() => localStorage.getItem('guigs-operator-session-token')), null, 'Identidade local forjada deve ser rejeitada pelo backend');
     await loginPin(pageA, operatorFixtures[1].pin);
     assert.equal(await pageA.evaluate(() => localStorage.getItem('guigs-workstation-device-key')), deviceBefore, 'Terminal não muda ao recuperar sessão inválida');
-    console.info('João/Carlos em tablets distintos: PIN touch, refresh, operador/terminal/sessão no histórico, aviso em montagem e troca com autoria anterior preservada.');
+    console.info('Logout bloqueado com reserva; pausa/release permitem troca. Duas abas e dois terminais do mesmo operador funcionam com versões; filtros e autoria preservados.');
     assert.deepEqual(errors, []);
   } finally {
     await browser.close(); if (web.exitCode === null) { const exited = new Promise(done => web.once('exit', done)); web.kill(); await exited; }

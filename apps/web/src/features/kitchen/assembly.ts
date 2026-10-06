@@ -16,6 +16,7 @@ export function orderStage(order: AssemblyOrder): AssemblyOrderStatus {
   return pizzasOf(order).some(pizza => pizza.status !== 'WAITING_ASSEMBLY') ? 'IN_PRODUCTION' : 'WAITING_PRODUCTION';
 }
 export function transitionPizza(pizza: PizzaItem, action: PizzaAction): PizzaItem {
+  if (action === 'CLAIM' || action === 'RELEASE') return pizza; // Operational reservations exist only in API mode.
   const from = pizza.paused ? 'ASSEMBLY_PAUSED' : pizza.status;
   const to = { START: 'ASSEMBLING', PAUSE: 'ASSEMBLY_PAUSED', RESUME: 'ASSEMBLING', SEND_TO_OVEN: 'WAITING_OVEN' } as const;
   if (!canTransitionPizza(from, to[action])) return pizza;

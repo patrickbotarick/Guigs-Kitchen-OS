@@ -18,7 +18,7 @@ export function mapAssemblyOrder(value: unknown): AssemblyOrder | null {
     persistedVersion: order.version,
     extraCount: order.items.reduce((sum, item) => sum + (item.kind === 'EXTRA' && item.state !== 'CANCELLED' ? item.quantity : 0), 0),
     items: pizzas.map(pizza => ({ ...pizza.recipe, id: pizza.id, kind: 'PIZZA', notes: pizza.snapshot.notes ?? pizza.notes,
-      snapshot: pizza.snapshot, status: pizza.production.state, productionVersion: pizza.production.version, paused: pizza.production.state === 'ASSEMBLY_PAUSED' })) };
+      snapshot: pizza.snapshot, assignment: pizza.assignment, status: pizza.production.state, productionVersion: pizza.production.version, paused: pizza.production.state === 'ASSEMBLY_PAUSED' })) };
 }
 
 export function createAssemblyApi(baseUrl: string, fetcher: typeof fetch = fetch) {

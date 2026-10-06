@@ -107,8 +107,11 @@ export const pizzaProductionSchema = z.object({
   if (dates.some((date, index) => index > 0 && Date.parse(date) < Date.parse(dates[index - 1]))) ctx.addIssue({ code: 'custom', message: 'Timestamps de produção fora de ordem.' });
 });
 const baseItem = { id, orderId: id, position: z.number().int().nonnegative(), notes };
+export const pizzaAssignmentSchema = z.object({ operatorId: id, operatorName: id, workstationId: id, sessionId: id, assignedAt: instant }).strict();
+export type PizzaAssignment = z.infer<typeof pizzaAssignmentSchema>;
 export const pizzaItemSchema = z.object({ ...baseItem, kind: z.literal('PIZZA'), recipe: pizzaRecipeSchema,
   snapshot: recipeSnapshotSchema, production: pizzaProductionSchema,
+  assignment: pizzaAssignmentSchema.nullable().default(null), releasedAt: instant.nullable().default(null),
 }).strict().superRefine((pizza, ctx) => {
   const { recipe, snapshot } = pizza;
   const modifierKeys = (modifiers: IngredientModifier[]) => modifiers.map(modifier => `${modifier.type}:${modifier.ingredientId}`).sort().join('|');
@@ -162,7 +165,7 @@ export const createStructuredOrderSchema = z.object({
 });
 export type CreateStructuredOrderInput = z.infer<typeof createStructuredOrderSchema>;
 
-export const assemblyCommands = ['START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN'] as const;
+export const assemblyCommands = ['START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN', 'CLAIM_PIZZA', 'RELEASE_PIZZA'] as const;
 export const pizzaCommandSchema = z.object({
   command: z.enum(assemblyCommands), expectedState: pizzaProductionStateSchema,
   expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid(),

@@ -1,4 +1,11 @@
 /* Scoped to assembly: the reception pages keep their existing design and layout. */
+.ka-queue-wrapper { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.ka-queue-wrapper > .ka-queue { flex: 1; min-height: 0; }
+.ka-queue-filter { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 5px; }
+.ka-queue-filter button, .ka-responsibility button { min-height: 44px; border: 1px solid #ddd; border-radius: 5px; background: white; padding: 5px 8px; font-size: 12px; }
+.ka-queue-filter button[aria-pressed="true"] { border-color: var(--ka-red); color: var(--ka-red); }
+.ka-responsibility { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; padding: 0 10px 8px; font-size: 12px; }
+.ka-responsibility small { width: 100%; }
 .ka-screen {
   --ka-red: var(--color-brand-primary);
   --ka-green: #00bd60;

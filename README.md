@@ -2,7 +2,7 @@
 
 Protótipo local da operação da cozinha: criar pedidos fictícios, persistir em SQLite, avançar por estados validados e acompanhar o histórico em tempo real. O escopo e as fases futuras estão em [BASE_DO_PROJETO.md](BASE_DO_PROJETO.md).
 
-A nova **Fila de Montagem** é um módulo isolado para tablets, dentro deste mesmo frontend. Nesta primeira versão, usa exclusivamente dados em memória para validar a operação por pizza. As páginas existentes e sua integração com SQLite/API continuam preservadas.
+A **Fila de Montagem** é um módulo para tablets dentro deste frontend: lê pedidos v2 persistidos, executa comandos autenticados por PIN e sincroniza por realtime. Na Fase 3D.2B, inclui responsabilidade por pizza e filtros de pizzas próprias/disponíveis. O simulador local permanece separado em modo DEV. Regras e validações em [PHASE_3D2B_PIZZA_RESPONSIBILITY.md](docs/PHASE_3D2B_PIZZA_RESPONSIBILITY.md).
 
 ## Requisitos
 
@@ -22,7 +22,7 @@ Com ambiente preparado, também é possível executar `npm run dev`. Na primeira
 | Painel | http://localhost:5173/ |
 | Novo pedido | http://localhost:5173/orders/new |
 | Cozinha | http://localhost:5173/kitchen |
-| Fila de Montagem (demo local) | http://localhost:5173/kitchen/assembly |
+| Fila de Montagem (persistida, identificação por PIN) | http://localhost:5173/kitchen/assembly |
 | Simulador da montagem (somente desenvolvimento) | http://localhost:5173/kitchen/assembly/dev |
 | Saúde da API | http://localhost:3333/health |
 | Pedidos ativos | `GET http://localhost:3333/orders` |

@@ -161,9 +161,18 @@ model PizzaItem {
   halves PizzaHalf[]
   history PizzaProductionHistory[]
   commands PizzaCommandReceipt[]
+  assignedOperatorId String?
+  assignedOperator Operator? @relation(fields: [assignedOperatorId], references: [id], onDelete: Restrict)
+  assignedWorkstationId String?
+  assignedWorkstation Workstation? @relation(fields: [assignedWorkstationId], references: [id], onDelete: Restrict)
+  assignedSessionId String?
+  assignedSession OperatorSession? @relation(fields: [assignedSessionId], references: [id], onDelete: Restrict)
+  assignedAt DateTime?
+  releasedAt DateTime?
 
   @@unique([orderId, position])
   @@index([state, queuedAt])
+  @@index([assignedOperatorId, state])
 }
 
 model PizzaHalf {
@@ -253,6 +262,7 @@ model Operator {
   updatedAt DateTime @updatedAt
   sessions OperatorSession[]
   history PizzaProductionHistory[]
+  assignedPizzas PizzaItem[]
 }
 
 model Workstation {
@@ -263,6 +273,7 @@ model Workstation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions OperatorSession[]
+  assignedPizzas PizzaItem[]
 }
 
 model OperatorSession {
@@ -278,6 +289,7 @@ model OperatorSession {
   active Boolean @default(true)
   history PizzaProductionHistory[]
   receipts PizzaCommandReceipt[]
+  assignedPizzas PizzaItem[]
 
   @@index([workstationId, active])
   @@index([operatorId, startedAt])

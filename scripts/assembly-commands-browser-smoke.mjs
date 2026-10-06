@@ -56,10 +56,10 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     assert.equal(first.state, 'ASSEMBLING'); assert.equal(first.version, 1);
     await pageA.reload();
     await pageA.getByRole('button', { name: 'Confirmar comando novamente', exact: true }).click();
-    await pageA.getByRole('button', { name: 'Pausar', exact: true }).waitFor();
+    await pageA.getByText('Comando confirmado e salvo.', { exact: true }).waitFor();
     assert.equal(posts[0].input.clientCommandId, posts[1].input.clientCommandId);
     assert.equal((await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizzaId } })).assemblyStartedAt.toISOString(), first.assemblyStartedAt.toISOString());
-    assert.equal(await prisma.pizzaProductionHistory.count(), 2);
+    assert.equal(await prisma.pizzaProductionHistory.count(), 3);
 
     // Tablet B still holds version zero: its stale action must fail and reload.
     await pageB.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
@@ -85,7 +85,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     assert.equal(saved.items[0].production.state, 'WAITING_OVEN'); assert.equal(saved.items[0].production.version, 4);
     assert.ok(saved.items[0].production.assemblyCompletedAt); assert.equal(saved.items[0].production.ovenStartedAt, null);
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId }, orderBy: { itemVersion: 'asc' } });
-    assert.deepEqual(history.map(event => event.eventType), ['CREATED', 'START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN']);
+    assert.deepEqual(history.map(event => event.eventType), ['CREATED', 'CLAIMED', 'START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN']);
     assert.equal(await prisma.pizzaCommandReceipt.count(), 4);
     assert.deepEqual(errors, []);
     console.info('Comandos Assembly aprovados: balcão → SQLite → iniciar/pausar/retomar/enviar; refresh preserva estado; timestamps/histórico/agregação; resposta perdida com refresh/replay sem duplicação; segundo tablet recebe 409 e recarrega. Banco descartável.');

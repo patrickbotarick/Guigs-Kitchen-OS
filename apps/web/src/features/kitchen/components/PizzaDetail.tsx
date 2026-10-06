@@ -25,13 +25,19 @@ function PizzaActions({ pizza, onAction, readOnly, busy }: { pizza: PizzaItem; o
     <button className="ka-send" type="button" disabled={busy || pizza.status !== 'ASSEMBLING' || pizza.paused} onClick={() => onAction('SEND_TO_OVEN')}><AssemblyIcon name="flame" /><span>Enviar pro forno{pizza.status === 'WAITING_ASSEMBLY' && <small>Disponível após iniciar a montagem</small>}{pizza.paused && <small>Retome a montagem para enviar</small>}</span></button>
   </div>;
 }
-export function PizzaDetail({ pizza, onAction, readOnly = false, busy = false }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void; readOnly?: boolean; busy?: boolean }) {
+export function PizzaDetail({ pizza, onAction, readOnly = false, busy = false, operatorId }: { pizza: PizzaItem; onAction: (action: PizzaAction) => void; readOnly?: boolean; busy?: boolean; operatorId?: string }) {
   const [halfIndex, setHalfIndex] = useState<0 | 1>(0);
+  const mine = pizza.assignment?.operatorId === operatorId;
+  const other = Boolean(pizza.assignment && !mine);
+  const eligible = ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'].includes(pizza.status);
   return <aside className="ka-detail" aria-labelledby="ka-detail-title"><h2 id="ka-detail-title">Pizza selecionada</h2>
+    {operatorId && <div className="ka-responsibility" role="status"><span>{pizza.assignment ? `Montador: ${pizza.assignment.operatorName}${mine ? ' · Sua pizza' : ''}` : 'Pizza disponível'}</span>
+      {eligible && !other && <button type="button" disabled={busy || (mine && pizza.status === 'ASSEMBLING')} onClick={() => onAction(mine ? 'RELEASE' : 'CLAIM')}>{mine ? 'Liberar pizza' : 'Assumir pizza'}</button>}
+      {mine && pizza.status === 'ASSEMBLING' && <small>Pause antes de liberar.</small>}</div>}
     <div className="ka-detail-scroll" key={pizza.id}><header className="ka-detail-header"><h3>{pizzaName(pizza)}</h3><div className="ka-detail-meta"><span>{pizzaSizes[pizza.size].label}</span>{pizza.composition === 'HALF_HALF' && <span>Meio a meio</span>}<span>{crustLabel(pizza)}</span></div></header>
       {pizza.composition === 'HALF_HALF' && <div className="ka-half-selector" role="group" aria-label="Metade exibida">{[0, 1].map(index => <button key={index} type="button" aria-pressed={halfIndex === index} onClick={() => setHalfIndex(index as 0 | 1)}>{index + 1}ª metade — {halfName(pizza, index as 0 | 1)}</button>)}</div>}
       <IngredientList ingredients={pizzaIngredients(pizza, halfIndex)} /><ObservationBox notes={pizza.notes} />
     </div>
-    <PizzaActions pizza={pizza} onAction={onAction} readOnly={readOnly} busy={busy} />
+    <PizzaActions pizza={pizza} onAction={onAction} readOnly={readOnly} busy={busy || other || Boolean(operatorId && !mine && pizza.status !== 'WAITING_ASSEMBLY')} />
   </aside>;
 }

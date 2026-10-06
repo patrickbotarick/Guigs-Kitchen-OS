@@ -10,7 +10,7 @@ import { PizzaCommandConflictError, PizzaCommandNotFoundError, type PizzaCommand
 import { type KitchenNotification } from '@guigs/shared';
 import { commandNotifications } from './kitchen-events.js';
 import { operatorLoginSchema } from '@guigs/shared';
-import { OperationalAuthError, PinLoginError, LoginRateLimitError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
+import { OperationalAuthError, PinLoginError, LoginRateLimitError, SessionResponsibilityConflictError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -114,6 +114,7 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
 
   const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     void _next;
+    if (error instanceof SessionResponsibilityConflictError) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof OperationalAuthError || error instanceof PinLoginError) { res.status(401).json({ error: error.message }); return; }
     if (error instanceof LoginRateLimitError) { res.set('Retry-After', String(error.retryAfter)).status(429).json({ error: error.message }); return; }
     if (error instanceof ZodError) {

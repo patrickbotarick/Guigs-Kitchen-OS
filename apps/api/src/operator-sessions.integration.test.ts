@@ -102,14 +102,18 @@ describe('identidade operacional', () => {
   it('troca de operador registra futuras ações com nova sessão e preserva histórico anterior', async () => {
     const a = await login(), b = await login('5937'), order = await fresh(), pizzaId = order.items[0].id;
     const first = await commands.execute(order.id, pizzaId, { command: 'START_ASSEMBLY', expectedState: 'WAITING_ASSEMBLY', expectedVersion: 0, clientCommandId: randomUUID() }, a.auth);
-    await commands.execute(order.id, pizzaId, { command: 'PAUSE_ASSEMBLY', expectedState: 'ASSEMBLING', expectedVersion: 1, clientCommandId: randomUUID() }, b.auth);
+    await expect(commands.execute(order.id, pizzaId, { command: 'PAUSE_ASSEMBLY', expectedState: 'ASSEMBLING', expectedVersion: 1, clientCommandId: randomUUID() }, b.auth)).rejects.toThrow('outro montador');
+    await commands.execute(order.id, pizzaId, { command: 'PAUSE_ASSEMBLY', expectedState: 'ASSEMBLING', expectedVersion: 1, clientCommandId: randomUUID() }, a.auth);
+    await expect(sessions.end(a.auth)).rejects.toThrow('responsabilidade');
+    await commands.execute(order.id, pizzaId, { command: 'RELEASE_PIZZA', expectedState: 'ASSEMBLY_PAUSED', expectedVersion: 2, clientCommandId: randomUUID() }, a.auth);
     await sessions.end(a.auth); const changed = await login('5937', a.auth.deviceKey);
-    await commands.execute(order.id, pizzaId, { command: 'RESUME_ASSEMBLY', expectedState: 'ASSEMBLY_PAUSED', expectedVersion: 2, clientCommandId: randomUUID() }, changed.auth);
+    await commands.execute(order.id, pizzaId, { command: 'CLAIM_PIZZA', expectedState: 'ASSEMBLY_PAUSED', expectedVersion: 3, clientCommandId: randomUUID() }, changed.auth);
+    await commands.execute(order.id, pizzaId, { command: 'RESUME_ASSEMBLY', expectedState: 'ASSEMBLY_PAUSED', expectedVersion: 4, clientCommandId: randomUUID() }, changed.auth);
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId }, orderBy: { itemVersion: 'asc' } });
-    expect(history.map(event => event.actorType)).toEqual(['SYSTEM', 'OPERATOR', 'OPERATOR', 'OPERATOR']);
+    expect(history.map(event => event.actorType)).toEqual(['SYSTEM', 'OPERATOR', 'OPERATOR', 'OPERATOR', 'OPERATOR', 'OPERATOR', 'OPERATOR']);
     expect(history[1]).toMatchObject({ operatorId: a.session.operatorId, actorId: a.session.operatorId, workstationId: a.session.workstationId, operatorSessionId: a.session.sessionId });
-    expect(history[2]).toMatchObject({ operatorId: b.session.operatorId, workstationId: b.session.workstationId, operatorSessionId: b.session.sessionId });
-    expect(history[3]).toMatchObject({ operatorId: changed.session.operatorId, workstationId: a.session.workstationId, operatorSessionId: changed.session.sessionId });
+    expect(history[3]).toMatchObject({ operatorId: a.session.operatorId, workstationId: a.session.workstationId, operatorSessionId: a.session.sessionId });
+    expect(history[6]).toMatchObject({ operatorId: changed.session.operatorId, workstationId: a.session.workstationId, operatorSessionId: changed.session.sessionId });
     expect(first.order.items[0].kind).toBe('PIZZA');
   });
   it('idempotência pertence à sessão original e não permite reatribuir comando', async () => {
@@ -117,7 +121,7 @@ describe('identidade operacional', () => {
     const payload = { command: 'START_ASSEMBLY' as const, expectedState: 'WAITING_ASSEMBLY' as const, expectedVersion: 0, clientCommandId: randomUUID() };
     await commands.execute(order.id, pizzaId, payload, a.auth); expect((await commands.execute(order.id, pizzaId, payload, a.auth)).replayed).toBe(true);
     await expect(commands.execute(order.id, pizzaId, payload, b.auth)).rejects.toThrow('Identificador de comando');
-    expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId } })).toBe(2);
+    expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId } })).toBe(3);
   });
   it('proteção por terminal e por rede responde 429 sem enumerar operadores', async () => {
     const deviceKey = randomUUID();

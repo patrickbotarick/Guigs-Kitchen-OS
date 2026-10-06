@@ -135,7 +135,7 @@ export function usePersistentAssembly(credentials: SessionCredentials, operatorS
     if (sending.current || pendingRef.current) return;
     const pizza = state.orders.find(order => order.id === orderId)?.items.find(pizza => pizza.id === pizzaId);
     if (!pizza || pizza.productionVersion === undefined) return;
-    const command = { START: 'START_ASSEMBLY', PAUSE: 'PAUSE_ASSEMBLY', RESUME: 'RESUME_ASSEMBLY', SEND_TO_OVEN: 'SEND_TO_OVEN' } as const;
+    const command = { START: 'START_ASSEMBLY', PAUSE: 'PAUSE_ASSEMBLY', RESUME: 'RESUME_ASSEMBLY', SEND_TO_OVEN: 'SEND_TO_OVEN', CLAIM: 'CLAIM_PIZZA', RELEASE: 'RELEASE_PIZZA' } as const;
     void send({ orderId, pizzaId, operatorSessionId, input: { command: command[action], expectedState: pizza.status, expectedVersion: pizza.productionVersion, clientCommandId: clientId() } });
   }
   return { state, dispatch, loading, refreshing, error: [error, commandError].filter(Boolean).join(' '), reload: () => setReloadVersion(version => version + 1), performCommand,

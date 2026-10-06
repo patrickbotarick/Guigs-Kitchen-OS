@@ -1,4 +1,4 @@
-import type { ModifierKind, OrderStatus, OrderView, PizzaProductionState, PizzaRecipe, RecipeSnapshot } from '@guigs/shared';
+import type { ModifierKind, OrderStatus, OrderView, PizzaProductionState, PizzaRecipe, RecipeSnapshot, PizzaAssignment } from '@guigs/shared';
 export type { IngredientModifier, PizzaHalf, PizzaRecipe } from '@guigs/shared';
 
 // Local assembly projection: item states are distinct from the persisted order states.
@@ -19,6 +19,7 @@ export type PizzaItem = PizzaDraft & Pick<OrderView['items'][number], 'id'> & {
   paused: boolean;
   snapshot?: RecipeSnapshot;
   productionVersion?: number;
+  assignment?: PizzaAssignment | null;
 };
 export interface AssemblyOrder extends Pick<OrderView, 'id' | 'number' | 'customerName' | 'receivedAt'> {
   channel: OrderChannel;
@@ -43,4 +44,4 @@ export interface AssemblyHandoff {
   orderStatus: 'OVEN';
   destination: 'OVEN';
 }
-export type PizzaAction = 'START' | 'PAUSE' | 'RESUME' | 'SEND_TO_OVEN';
+export type PizzaAction = 'START' | 'PAUSE' | 'RESUME' | 'SEND_TO_OVEN' | 'CLAIM' | 'RELEASE';

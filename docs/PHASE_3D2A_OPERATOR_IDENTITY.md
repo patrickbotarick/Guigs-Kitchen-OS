@@ -4,7 +4,7 @@
 
 Fase 3D.1 fechada no commit local `10b1cf6` — `feat: add realtime kitchen synchronization`, após revisão, lint/typecheck/build, 73 testes API e 34 montagem aprovados. `package-lock.json` preservado fora do commit: apenas metadados ambientais peer/libc. Nenhum banco, backup, segredo ou `.env` incluído; sem push.
 
-Esta fase cria identidade, sessão e autoria auditável. Não implementa distribuição automática, fila privada, assignment, claim, lock, reatribuição, supervisor, forno operacional, finalização, despacho, dashboard ou estoque. Alterações 3D.2A ficam para revisão local, sem commit nesta execução.
+Esta fase criou identidade, sessão e autoria auditável, posteriormente registrada no commit `fb11075`. O escopo original 3D.2A não incluía distribuição automática, fila privada, assignment, claim, lock, reatribuição, supervisor, forno operacional, finalização, despacho, dashboard ou estoque. A evolução atual de responsabilidade por pizza está em [PHASE_3D2B_PIZZA_RESPONSIBILITY.md](PHASE_3D2B_PIZZA_RESPONSIBILITY.md); as regras de troca sem reserva descritas abaixo são o registro histórico da 3D.2A.
 
 ## Entidades
 

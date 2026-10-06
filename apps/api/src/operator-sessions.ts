@@ -8,6 +8,9 @@ export class OperationalAuthError extends Error {
 export class PinLoginError extends Error {
   constructor() { super('PIN inválido ou terminal indisponível.'); }
 }
+export class SessionResponsibilityConflictError extends Error {
+  constructor() { super('Há pizzas sob sua responsabilidade. Pause e libere as pizzas antes de trocar ou encerrar a sessão.'); }
+}
 export class LoginRateLimitError extends Error {
   constructor(public readonly retryAfter: number) { super('Muitas tentativas. Aguarde antes de tentar novamente.'); }
 }
@@ -86,6 +89,8 @@ export class OperatorSessionService {
         if (!operator.active || operator.pinHash !== matched!.pinHash) throw new PinLoginError();
         const workstation = await tx.workstation.upsert({ where: { deviceKey }, create: { deviceKey, name: `Tablet Cozinha ${deviceKey.slice(0, 8)}` }, update: { updatedAt: new Date() } });
         if (!workstation.active) throw new PinLoginError();
+        const activeClaims = await tx.pizzaItem.count({ where: { assignedWorkstationId: workstation.id, assignedOperatorId: { not: operatorId }, state: { in: ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] } } });
+        if (activeClaims) throw new SessionResponsibilityConflictError();
         const now = new Date();
         await tx.operatorSession.updateMany({ where: { workstationId: workstation.id, active: true }, data: { active: false, endedAt: now } });
         const created = await tx.operatorSession.create({ data: { operatorId, workstationId: workstation.id, tokenHash: tokenHash(token), startedAt: now, expiresAt: new Date(now.getTime() + this.lifetimeMs) }, include: { operator: true, workstation: true } });
@@ -109,6 +114,7 @@ export class OperatorSessionService {
   async end(credentials: SessionCredentials) {
     return transactionRetry(this.prisma, async tx => {
       const session = await this.validate(credentials, tx);
+      if (await tx.pizzaItem.count({ where: { assignedOperatorId: session.operatorId, state: { in: ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] } } })) throw new SessionResponsibilityConflictError();
       await tx.operatorSession.update({ where: { id: session.sessionId }, data: { active: false, endedAt: new Date() } });
     });
   }

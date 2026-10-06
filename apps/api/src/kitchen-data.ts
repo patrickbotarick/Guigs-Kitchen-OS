@@ -7,7 +7,7 @@ import { toOrderView } from './orders.js';
 export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, id: string): Promise<CompatibleOrder | null> {
   const order = await prisma.order.findUnique({ where: { id }, include: {
     items: { include: { modifiers: true } },
-    pizzaItems: { include: { halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
+    pizzaItems: { include: { assignedOperator: true, halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
   } });
   if (!order) return null;
   if (order.schemaVersion === 1) return readOrderData(toOrderView(order));
@@ -23,6 +23,8 @@ export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, i
       const halves = pizza.halves.map(half => ({ flavorId: half.flavorId, modifiers: half.modifiers.map(modifier => ({ type: modifier.type, ingredientId: modifier.ingredientId })) }));
       if (pizza.halves[0]?.position !== 1 || (pizza.composition === 'WHOLE' ? pizza.halves.length !== 1 : pizza.halves.length !== 2 || pizza.halves[1]?.position !== 2)) throw new Error('Metades persistidas incompatíveis.');
       return { id: pizza.id, orderId: order.id, position: pizza.position, notes: pizza.notes, kind: 'PIZZA',
+        assignment: pizza.assignedOperatorId ? { operatorId: pizza.assignedOperatorId, operatorName: pizza.assignedOperator?.name, workstationId: pizza.assignedWorkstationId, sessionId: pizza.assignedSessionId, assignedAt: iso(pizza.assignedAt) } : null,
+        releasedAt: iso(pizza.releasedAt),
         recipe: { size: pizza.size, composition: pizza.composition, firstHalf: halves[0], ...(pizza.composition === 'HALF_HALF' ? { secondHalf: halves[1] } : {}), crustId: pizza.crustId },
         snapshot,
         production: { state: pizza.state, version: pizza.version, queuedAt: pizza.queuedAt.toISOString(),
