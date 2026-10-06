@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { nextOrderStatus, type ActorType, type OrderHistoryView, type OrderStatus, type OrderView } from '@guigs/shared';
 import { getOrderHistory, transitionOrder } from '../api';
 import { useKitchen } from '../useKitchen';
+import { AssemblyIcon } from '../features/kitchen/components/AssemblyIcons';
 
 const statusLabels: Record<OrderStatus, string> = {
   WAITING_PRODUCTION: 'Aguardando produção',
@@ -62,7 +63,7 @@ function OrderCard({ order, refresh }: { order: OrderView; refresh: () => Promis
     <div className="items">{order.items.map((item, index) => <div className="pizza" key={item.id}>
       <div className="pizza-title"><span className="pizza-index">{index + 1}</span><strong>{item.name} <span>{item.size}</span></strong></div>
       {item.ingredients && <p className="ingredients">{item.ingredients}</p>}
-      {item.modifiers.map(modifier => <div className={`modifier ${modifier.kind.toLowerCase()}`} key={modifier.id}>{modifier.kind === 'REMOVED' ? '🚫 SEM ' : modifier.kind === 'CRUST' ? '+ BORDA ' : '+ '}{modifier.name}</div>)}
+      {item.modifiers.map(modifier => <div className={`modifier ${modifier.kind.toLowerCase()}`} key={modifier.id}><AssemblyIcon name={modifier.kind === 'REMOVED' ? 'close' : 'plus'} />{modifier.kind === 'REMOVED' ? 'SEM ' : modifier.kind === 'CRUST' ? 'BORDA ' : ''}{modifier.name}</div>)}
       {item.notes && <p className="item-note">Obs: {item.notes}</p>}
     </div>)}</div>
     {order.notes && <div className="order-note">Pedido: {order.notes}</div>}

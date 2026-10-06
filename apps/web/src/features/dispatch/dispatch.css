@@ -1,2 +1,7 @@
 .dispatch-page [aria-label="Tipo de atendimento"] { display: flex; gap: 8px; flex-wrap: wrap; }
 .dispatch-page [aria-label="Tipo de atendimento"] button[aria-pressed="true"] { background: var(--color-brand-soft); border-color: var(--color-brand-primary); }
+.dispatch-page [aria-label="Tipo de atendimento"] { gap: 5px; }
+.dispatch-page [aria-label="Tipo de atendimento"] .button { font-size: 12px; font-weight: 600; }
+.dispatch-page [aria-label="Tipo de atendimento"] button[aria-pressed="true"] { color: var(--color-brand-primary); }
+.dispatch-order > span:last-child { font-variant-numeric: tabular-nums; }
+.dispatch-detail header > strong { display: block; width: fit-content; border-radius: 5px; padding: 6px 8px; background: var(--kui-neutral); font-size: 13px; }

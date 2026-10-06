@@ -1,5 +1,7 @@
 # Guig's Kitchen — Balcão, montagem, forno, finalização e despacho
 
+Referência visual oficial: `/kitchen/assembly`. Forno, Finalização, Despacho e Balcão seguem os [padrões de UI](docs/UI_VISUAL_STANDARDIZATION.md); `npm run test:ui:browser` valida as telas em tablets com dados isolados. Esta padronização visual não inicia a Fase 6 funcional.
+
 **Fase 5 — Finalização e Despacho: STATUS CONCLUÍDA TECNICAMENTE.** Finalização persistente, conferência de pizzas/extras, embalagem e correções auditáveis até WAITING_DISPATCH; Despacho manual de Delivery até DELIVERED e Retirada/Balcão (PICKUP) até PICKED_UP. Realtime, idempotência, concorrência, timestamps e histórico implementados. Fluxo principal v2 tecnicamente completo, com v1 preservado. Piloto físico é validação operacional pendente; endereço estruturado de Delivery permanece pendência conhecida. Balcão é canal de entrada. [Fechamento, contrato e validações](docs/PHASE_5B2_DISPATCH.md). Fase 6 não iniciada.
 
 **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE.** 4B fechada no commit `a8534d1`; piloto físico permanece validação operacional pendente.

@@ -14,6 +14,7 @@ import { OvenPage } from './features/oven/OvenPage';
 import { FinishingPage } from './features/finishing/FinishingPage';
 import { DispatchPage } from './features/dispatch/DispatchPage';
 import './style.css';
+import './operational-ui.css';
 
 function App() {
   const location = useLocation();

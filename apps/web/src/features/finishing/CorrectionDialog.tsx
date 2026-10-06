@@ -11,7 +11,7 @@ export function CorrectionDialog({ input, label, enabled, cancel, confirm }: { i
       <p>O histórico será preservado. Corrigir um item também invalida a embalagem confirmada.</p>
       {input.command === 'UNCHECK_EXTRA' && <label>Quantidade que permanece conferida<input type="number" min={0} max={input.checkedQuantity} step={1} required value={quantity} onChange={event => setQuantity(Number(event.target.value))} /></label>}
       <label>Motivo (opcional)<textarea maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></label>
-      <div><button type="button" className="button secondary" autoFocus onClick={cancel}>Cancelar</button><button type="submit" className="button primary" disabled={!enabled}>Confirmar correção</button></div>
+      <div><button type="button" className="button secondary" autoFocus onClick={cancel}>Cancelar</button><button type="submit" className="button danger" disabled={!enabled}>Confirmar correção</button></div>
     </form>
   </dialog>;
 }

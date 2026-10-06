@@ -4,6 +4,7 @@ import type { DispatchCommandInput, Order, OperationalSession } from '@guigs/sha
 import { clientId } from '../../utils/clientId';
 import { useOperatorSession } from '../kitchen/useOperatorSession';
 import { OperatorPin } from '../kitchen/components/OperatorPin';
+import { AssemblyIcon } from '../kitchen/components/AssemblyIcons';
 import type { SessionCredentials } from '../kitchen/operatorSession';
 import { elapsedSeconds, formatDuration } from '../oven/oven';
 import { availableDispatchCommands, commandLabels, dispatchLabels, dispatchQueue, dispatchSummary, dispatchWaitingSeconds } from './dispatch';
@@ -25,7 +26,7 @@ function OperationalDispatch({ session, credentials, sessionBusy, sessionError, 
   const orders = dispatchQueue(queue.orders, filter), order = orders.find(order => order.id === selected) ?? orders[0];
   const enabled = queue.canAct && !sessionBusy && !sessionError && session.presenceStatus === 'ONLINE';
   return <section className="oven-page dispatch-page">
-    <header className="oven-header"><div><h1>Despacho</h1><p aria-label="Identidade operacional">{session.operatorName} • {session.workstationName} • {session.presenceStatus === 'ONLINE' ? 'Presença válida' : 'Confirme presença'}</p></div><div className="oven-header-actions">
+    <header className="oven-header"><div><h1><AssemblyIcon name="flag" />Despacho</h1><p aria-label="Identidade operacional">{session.operatorName} • {session.workstationName} • {session.presenceStatus === 'ONLINE' ? 'Presença válida' : 'Confirme presença'}</p></div><div className="oven-header-actions">
       <span role="status" aria-label="Conexão Despacho" className={`oven-connection oven-connection-${queue.connection.toLowerCase()}`}>{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[queue.connection]}</span>
       <button className="button secondary" disabled={queue.busy || queue.pending || sessionBusy} onClick={() => void end()}>Encerrar turno</button><Link className="button subtle" to="/kitchen/finishing">Finalização</Link><Link className="button subtle" to="/">Balcão</Link></div></header>
     <div className="oven-toolbar"><div role="group" aria-label="Tipo de atendimento">{(['ALL', 'DELIVERY', 'PICKUP'] as const).map(value => <button key={value} className="button subtle" aria-pressed={filter === value} onClick={() => setFilter(value)}>{({ ALL: 'Todos', DELIVERY: 'Delivery', PICKUP: 'Retirada / Balcão' })[value]}</button>)}</div><button className="button secondary" disabled={queue.refreshing || queue.busy} onClick={queue.reload}>{queue.refreshing ? 'Atualizando...' : 'Atualizar'}</button>

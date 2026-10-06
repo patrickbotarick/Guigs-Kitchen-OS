@@ -1,0 +1,145 @@
+/* Values audited from Assembly. Scoped aliases leave Assembly's reference intact. */
+:root {
+  --kui-background: #f4f3f1;
+  --kui-surface: #fff;
+  --kui-text: #141416;
+  --kui-muted: #66636a;
+  --kui-line: #e6e5e7;
+  --kui-selected: #fff5f6;
+  --kui-neutral: #ededf0;
+  --kui-success: #19653c;
+  --kui-success-soft: #effaf3;
+  --kui-warning: #976018;
+  --kui-danger: #a12626;
+  --kui-panel-radius: 7px;
+  --kui-card-radius: 6px;
+  --kui-button-radius: 5px;
+  --kui-gap: 8px;
+  --kui-selected-shadow: 0 4px 8px #1714191c;
+}
+.oven-page, .page {
+  --color-background: var(--kui-background);
+  --color-text: var(--kui-text);
+  --color-text-muted: var(--kui-muted);
+  --color-border: var(--kui-line);
+  --color-brand-soft: var(--kui-selected);
+  --color-success: var(--kui-success);
+  --color-success-soft: var(--kui-success-soft);
+  --color-warning: var(--kui-warning);
+  --color-danger: var(--kui-danger);
+  --radius-sm: var(--kui-card-radius);
+  --radius-md: var(--kui-panel-radius);
+  --radius-lg: var(--kui-panel-radius);
+  color: var(--kui-text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.oven-page {
+  max-width: none;
+  min-height: 100dvh;
+  padding: var(--kui-gap);
+  background: var(--kui-background);
+}
+.oven-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 12px;
+  border: 1px solid var(--kui-line);
+  border-radius: var(--kui-panel-radius);
+  background: var(--kui-surface);
+  gap: 12px;
+}
+.oven-header > div { min-width: 0; }
+.oven-header h1, .page h1 { font-size: clamp(27px, 3.1vw, 40px); line-height: 1.15; letter-spacing: -.035em; }
+.oven-header h1 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.oven-header h1 .ka-icon { color: var(--color-brand-primary); }
+.oven-header p { font-size: 12px; margin-top: 4px; color: var(--kui-muted); overflow-wrap: anywhere; }
+.oven-header-actions, .oven-toolbar { display: flex; align-items: center; flex-wrap: wrap; }
+.oven-header-actions { gap: 6px; justify-content: flex-end; }
+.oven-connection { font-size: 12px; font-weight: 500; color: var(--kui-muted); padding: 3px 6px; }
+.oven-connection::before { content: '●'; margin-right: 5px; }
+.oven-connection-online { color: #187544; }
+.oven-connection-offline { color: var(--kui-danger); }
+.oven-connection-reconnecting { color: var(--kui-muted); }
+.oven-page .button, .page .button {
+  min-height: 55px;
+  padding: 7px 12px;
+  border-radius: var(--kui-button-radius);
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  touch-action: manipulation;
+}
+.oven-header-actions .button, .oven-toolbar .button, .page .card-actions .button { min-height: 44px; }
+.oven-page .button.secondary, .page .button.secondary { border-color: var(--kui-line); background: var(--kui-surface); }
+.oven-page .button.subtle, .page .button.subtle { border-color: var(--kui-line); background: transparent; }
+.oven-page .button.danger { background: var(--kui-danger); color: var(--kui-surface); }
+.oven-page .button.danger:hover { background: var(--color-brand-primary-hover); }
+.oven-page .button:disabled, .page .button:disabled { cursor: not-allowed; opacity: .55; }
+.oven-page button:focus-visible, .oven-page a:focus-visible, .page button:focus-visible, .page a:focus-visible { outline: 3px solid #461588; outline-offset: 2px; }
+.oven-page button:not(:disabled):active, .page button:not(:disabled):active { filter: brightness(.96); }
+.oven-toolbar { gap: 8px; margin: 8px 0; padding: 8px 12px; background: var(--kui-surface); border-radius: var(--kui-panel-radius); }
+.oven-toolbar p, .oven-hint, .oven-sort { font-size: 12px; color: var(--kui-muted); }
+.oven-toolbar p { flex: 1; min-width: 200px; }
+.oven-hint { margin: 8px 12px; }
+.oven-alert, .oven-notice, .page .alert { padding: 10px 12px; border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); }
+.oven-alert, .page .alert { color: var(--kui-danger); background: var(--kui-selected); border-color: #e6c9cd; overflow-wrap: anywhere; }
+.oven-notice { background: var(--kui-surface); color: var(--kui-muted); }
+.oven-empty, .page .empty { padding: 24px 12px; background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); color: var(--kui-muted); }
+.oven-page > p[role="status"] { color: var(--kui-muted); padding: 12px; }
+/* Reception retains its navigation and workflows with the same compact surfaces. */
+.topbar { gap: 12px; min-height: 72px; padding: 8px 16px; }
+.topbar nav { flex-wrap: wrap; justify-content: flex-end; }
+.topbar nav a { min-height: 44px; padding: 12px 10px; border-radius: var(--kui-button-radius); font-weight: 700; }
+.page { padding: 20px 16px 40px; background: var(--kui-background); }
+.page-head { margin-bottom: 16px; gap: 12px; }
+.queue-toolbar { padding: 10px 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.queue-toolbar strong { font-size: 23px; }
+.order-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 8px; }
+.order-card { border-radius: var(--kui-card-radius); box-shadow: none; }
+.card-top { padding: 12px; flex-wrap: wrap; }
+.card-top h2 { font-size: 20px; }
+.order-number { font-size: 23px; font-weight: 700; }
+.pill { border-radius: 20px; padding: 4px 8px; font-size: 11px; font-weight: 600; text-transform: none; background: #e5e4e6; color: var(--kui-muted); }
+.status-in_production { background: var(--kui-selected); color: var(--color-brand-primary); }
+.status-oven, .status-finishing { background: #ffe2b2; color: #805006; }
+.status-waiting_dispatch, .status-delivered, .status-picked_up { background: #d3efdd; color: var(--kui-success); }
+.status-cancelled { background: var(--kui-selected); color: var(--kui-danger); }
+.order-meta { padding: 8px 12px; flex-wrap: wrap; font-weight: 600; }
+.items { padding: 4px 12px; }
+.pizza { padding: 12px 0; }
+.pizza-index { border-radius: 50%; background: #dedee0; color: var(--kui-text); }
+.order-note { margin-inline: 12px; }
+.card-actions, .history { padding: 12px; }
+.modifier { font-weight: 600; text-transform: none; }
+.modifier .ka-icon { width: 18px; height: 18px; margin-right: 4px; }
+.form-section { padding: 20px; }
+.form-section, .pizza-form, .stat { border-radius: var(--kui-panel-radius); }
+.section-heading { margin-bottom: 16px; }
+.page .remove-button, .page .add-button { min-height: 44px; touch-action: manipulation; }
+.hero { border-radius: var(--kui-panel-radius); padding: 24px; }
+.hero h1 { font-size: clamp(32px, 4vw, 48px); }
+.hero p { font-size: 16px; }
+.dashboard { padding-top: 20px; }
+.stat { padding: 16px; min-height: 120px; }
+@media (hover: hover) {
+  .finishing-order:not(.selected):hover, .order-card:hover { border-color: #bcb9be; }
+}
+@media (max-width: 1100px) {
+  .oven-header { align-items: flex-start; }
+  .oven-header-actions { max-width: 65%; }
+  .oven-header-actions .button, .oven-toolbar .button { font-size: 12px; padding-inline: 8px; }
+  .topbar { flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+  .oven-header { position: static; flex-direction: column; }
+  .oven-header-actions { max-width: none; width: 100%; justify-content: flex-start; }
+  .oven-page { padding: 6px; }
+  .page { padding: 16px 8px 32px; }
+  .topbar nav { overflow: visible; justify-content: flex-start; }
+  .status-line { white-space: normal; flex-wrap: wrap; }
+}
