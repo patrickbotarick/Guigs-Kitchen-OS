@@ -45,6 +45,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     for (const page of [pageA, pageB]) {
       await page.goto('http://127.0.0.1:5173/kitchen/assembly');
       await loginPin(page);
+      await page.getByRole('button', { name: 'Fila geral', exact: true }).click();
       await page.getByRole('heading', { name: `Pedido #${created.number}`, exact: true }).waitFor();
     }
     await pageA.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
@@ -55,6 +56,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     const first = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizzaId } });
     assert.equal(first.state, 'ASSEMBLING'); assert.equal(first.version, 1);
     await pageA.reload();
+    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await pageA.getByRole('button', { name: 'Confirmar comando novamente', exact: true }).click();
     await pageA.getByText('Comando confirmado e salvo.', { exact: true }).waitFor();
     assert.equal(posts[0].input.clientCommandId, posts[1].input.clientCommandId);
@@ -72,6 +74,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     const paused = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizzaId } });
     assert.equal(paused.state, 'ASSEMBLY_PAUSED'); assert.ok(paused.pausedAt);
     await pageA.reload();
+    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await pageA.getByRole('button', { name: 'Retomar', exact: true }).click();
     await pageA.getByRole('button', { name: 'Pausar', exact: true }).waitFor();
     const resumed = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizzaId } });
@@ -79,6 +82,7 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     await pageA.getByRole('button', { name: /Enviar pro forno/ }).click();
     await pageA.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
     await pageA.reload();
+    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await pageA.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
     const saved = await (await a.request.get(`${apiOrigin}/orders/v2/${created.id}`)).json();
     assert.equal(saved.status, 'OVEN'); assert.equal(saved.version, 4);

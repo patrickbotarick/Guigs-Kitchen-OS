@@ -36,6 +36,7 @@ beforeAll(async () => {
   await configureOperator(prisma, { name: 'Montador comandos fixture', pin: '4851' });
   const deviceKey = randomUUID(), result = await new OperatorSessionService(prisma).signIn({ pin: '4851', workstationDeviceKey: deviceKey });
   auth = { token: result.token, deviceKey }; operatorId = result.session.operatorId; workstationId = result.session.workstationId;
+  await prisma.operatorSession.update({ where: { id: result.session.sessionId }, data: { available: false } }); // Exercise manual claims independently of automatic distribution.
   authHeaders = { Authorization: `Bearer ${auth.token}`, 'X-Workstation-Device-Key': deviceKey };
 });
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
@@ -44,6 +45,7 @@ describe('comandos persistentes por pizza', () => {
   async function secondActor(sameOperator = false) {
     if (!sameOperator) await configureOperator(prisma, { name: 'Outro montador fixture', pin: '5938' });
     const deviceKey = randomUUID(), result = await new OperatorSessionService(prisma).signIn({ pin: sameOperator ? '4851' : '5938', workstationDeviceKey: deviceKey });
+    await prisma.operatorSession.update({ where: { id: result.session.sessionId }, data: { available: false } });
     return { auth: { token: result.token, deviceKey }, session: result.session, headers: { Authorization: `Bearer ${result.token}`, 'X-Workstation-Device-Key': deviceKey } };
   }
   it('claim preserva estado/agregação, registra identidade e pode ser lido novamente', async () => {
@@ -115,6 +117,7 @@ describe('comandos persistentes por pizza', () => {
     await configureOperator(prisma, { name: 'Sessão reserva fixture', pin: '6049' });
     const sessions = new OperatorSessionService(prisma), deviceKey = randomUUID();
     const signed = await sessions.signIn({ pin: '6049', workstationDeviceKey: deviceKey }); const credentials = { token: signed.token, deviceKey };
+    await sessions.setAvailability(credentials, false);
     const order = await fresh(); const run = async (current: Order, command: PizzaCommandInput['command']) => (await commands.execute(order.id, order.items[0].id, input(current, command), credentials)).order;
     let current = await run(order, 'CLAIM_PIZZA');
     await expect(sessions.end(credentials)).rejects.toThrow('responsabilidade');
@@ -130,6 +133,7 @@ describe('comandos persistentes por pizza', () => {
     const stored = (await take(order.id)).pizzas[0]; expect(stored.assignedOperatorId).toBe(operatorId);
     await expect(commands.execute(order.id, order.items[0].id, input(assigned, 'PAUSE_ASSEMBLY'), other.auth)).rejects.toThrow('Sessão operacional');
     const recovered = await new OperatorSessionService(prisma).signIn({ pin: '4851', workstationDeviceKey: other.auth.deviceKey });
+    await new OperatorSessionService(prisma).setAvailability({ token: recovered.token, deviceKey: other.auth.deviceKey }, false);
     const result = await commands.execute(order.id, order.items[0].id, input(assigned, 'PAUSE_ASSEMBLY'), { token: recovered.token, deviceKey: other.auth.deviceKey });
     expect(result.order.items[0]).toMatchObject({ assignment: { operatorId, sessionId: other.session.sessionId }, production: { state: 'ASSEMBLY_PAUSED' } });
   });

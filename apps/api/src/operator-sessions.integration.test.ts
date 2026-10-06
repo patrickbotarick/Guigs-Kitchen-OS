@@ -18,7 +18,10 @@ const creation = new StructuredOrderService(prisma), commands = new PizzaCommand
 const headers = (auth: SessionCredentials) => ({ Authorization: `Bearer ${auth.token}`, 'X-Workstation-Device-Key': auth.deviceKey });
 async function login(pin = '4826', deviceKey = randomUUID()) {
   const response = await request(app).post('/operators/session').send({ pin, workstationDeviceKey: deviceKey });
-  expect(response.status).toBe(201); return { auth: { token: response.body.token, deviceKey }, session: response.body.session };
+  expect(response.status).toBe(201);
+  const auth = { token: response.body.token, deviceKey };
+  const session = await sessions.setAvailability(auth, false); // This identity suite exercises manual assembly, not distribution.
+  return { auth, session };
 }
 async function fresh() { return (await creation.create({ clientRequestId: randomUUID(), customerName: 'Operação fixture', customerPhone: '', notes: '', extras: [], fulfillmentType: 'PICKUP', channel: 'COUNTER', pizzas: [{ size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null }] })).order; }
 beforeAll(async () => {
@@ -44,7 +47,7 @@ describe('identidade operacional', () => {
   });
   it('PIN válido registra terminal e retorna somente dados mínimos sem hashes', async () => {
     const { auth, session } = await login(); expect(session.operatorName).toBe('João fixture');
-    expect(Object.keys(session).sort()).toEqual(['expiresAt', 'operatorId', 'operatorName', 'sessionId', 'startedAt', 'workstationId', 'workstationName'].sort());
+    expect(Object.keys(session).sort()).toEqual(['available', 'expiresAt', 'operatorId', 'operatorName', 'sessionId', 'startedAt', 'workstationId', 'workstationName'].sort());
     const stored = await prisma.operatorSession.findUniqueOrThrow({ where: { id: session.sessionId } });
     expect(stored.tokenHash).not.toBe(auth.token); expect(stored.active).toBe(true);
     expect((await prisma.workstation.findUniqueOrThrow({ where: { id: session.workstationId } })).deviceKey).toBe(auth.deviceKey);

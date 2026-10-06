@@ -8,7 +8,7 @@ import { useAssembly } from '../useAssembly';
 
 export function KitchenAssemblyPage() {
   const { state, dispatch, mode, loading, refreshing, error, reload, performCommand, commandBusy, pendingCommand, sessionBusy, operatorSession } = useAssembly();
-  const [queueFilter, setQueueFilter] = useState<'ALL' | 'MINE' | 'AVAILABLE'>('ALL');
+  const [queueFilter, setQueueFilter] = useState<'ALL' | 'MINE' | 'AVAILABLE'>(mode === 'API' ? 'MINE' : 'ALL');
   const visibleOrders = state.orders.map(order => ({ ...order, items: order.items.filter(pizza => queueFilter === 'ALL' || (['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'].includes(pizza.status) && (queueFilter === 'MINE' ? pizza.assignment?.operatorId === operatorSession?.operatorId : !pizza.assignment))) })).filter(order => order.items.length);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {

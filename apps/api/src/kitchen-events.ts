@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { kitchenOrderUpdatedSchema, kitchenPizzaUpdatedSchema, type KitchenNotification, type PizzaCommandResult } from '@guigs/shared';
+import { kitchenOrderUpdatedSchema, kitchenPizzaUpdatedSchema, type KitchenNotification, type PizzaCommandResult, type Order } from '@guigs/shared';
 
 // Called by the HTTP adapter only after execute() resolves its database transaction.
 export function commandNotifications(result: PizzaCommandResult): KitchenNotification[] {
@@ -12,4 +12,9 @@ export function commandNotifications(result: PizzaCommandResult): KitchenNotific
       state: pizza.production.state, version: pizza.production.version, orderVersion: result.order.version }) },
     { type: 'kitchen.order.updated', payload: kitchenOrderUpdatedSchema.parse({ ...common, eventId: randomUUID(), status: result.order.status, version: result.order.version }) },
   ];
+}
+
+export function creationAssignmentNotifications(order: Order, clientRequestId: string): KitchenNotification[] {
+  const results = order.items.filter(item => item.kind === 'PIZZA' && item.assignment !== null).map(pizza => commandNotifications({ order, pizzaId: pizza.id, clientCommandId: clientRequestId, replayed: false }));
+  return [...results.flatMap(events => events.filter(event => event.type === 'kitchen.pizza.updated')), ...(results[0]?.filter(event => event.type === 'kitchen.order.updated') ?? [])];
 }

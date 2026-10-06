@@ -33,6 +33,7 @@ beforeAll(async () => {
   for (const name of readdirSync(directory).filter(name => /^\d/.test(name)).sort()) for (const sql of readFileSync(resolve(directory, name, 'migration.sql'), 'utf8').split(';').map(part => part.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(sql);
   await configureOperator(prisma, { name: 'Realtime fixture', pin: '4826' });
   const deviceKey = randomUUID(), login = await new OperatorSessionService(prisma).signIn({ pin: '4826', workstationDeviceKey: deviceKey });
+  await prisma.operatorSession.update({ where: { id: login.session.sessionId }, data: { available: false } }); // Isolate command publication from automatic creation assignment.
   authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${login.token}`, 'X-Workstation-Device-Key': deviceKey };
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done)); origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   for (let i = 0; i < 2; i++) { const socket = io(origin, { autoConnect: false }); clients.push(socket); const connected = next(socket, 'connect'); socket.connect(); await connected; }

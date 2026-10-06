@@ -3,13 +3,14 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { createRecipeSnapshot, createStructuredOrderSchema, deriveOrderProductionState, structuredOrderSchema, type CreateStructuredOrderInput, type Order } from '@guigs/shared';
 import { extraCatalog, extraCatalogRevisionId, recipeCatalog } from '@guigs/shared/catalog';
 import { loadCompatibleOrder } from './kitchen-data.js';
+import { assignNewOrder, type TiePicker } from './auto-assignment.js';
 
 export class StructuredValidationError extends Error {}
 export class IdempotencyConflictError extends Error {}
 export interface StructuredCreationResult { order: Order; replayed: boolean }
 
 export class StructuredOrderService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, private readonly pickTie?: TiePicker) {}
 
   async get(id: string): Promise<Order | null> {
     const read = await loadCompatibleOrder(this.prisma, id);
@@ -62,6 +63,7 @@ export class StructuredOrderService {
             })) },
             extraItems: { create: extras.map((extra, index) => ({ position: input.pizzas.length + index, extraCatalogId: extra.extraCatalogId, catalogRevisionId: extraCatalogRevisionId, nameSnapshot: extra.name, quantity: extra.quantity, notes: extra.notes })) },
           }, select: { id: true } });
+          await assignNewOrder(tx, created.id, clientRequestId, this.pickTie);
           const read = await loadCompatibleOrder(tx, created.id);
           if (!read || read.legacy) throw new Error('Falha na leitura do pedido estruturado.');
           const order = structuredOrderSchema.parse(read.order);
@@ -69,7 +71,7 @@ export class StructuredOrderService {
           return { order, replayed: false };
         }, { maxWait: 5000, timeout: 10000 });
       } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || !['P2002', 'P2034', 'P2028'].includes(error.code)) throw error;
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || !['P2002', 'P2034', 'P2028', 'P1008'].includes(error.code)) throw error;
         const saved = await this.prisma.structuredOrderCreation.findUnique({ where: { clientRequestId } });
         if (saved) return replay(saved);
         if (attempt === 3) throw error;

@@ -38,4 +38,5 @@ export async function loginOperator(pin: string) {
   localStorage.setItem(sessionStorageKey, result.token); return result;
 }
 export async function validateOperatorSession(credentials: SessionCredentials): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('GET', credentials)); }
+export async function setOperatorAvailability(credentials: SessionCredentials, available: boolean): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('PATCH', credentials, { available })); }
 export async function endOperatorSession(credentials: SessionCredentials) { await call('DELETE', credentials); invalidateSession(credentials.token); }

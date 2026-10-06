@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OperationalSession } from '@guigs/shared';
-import { endOperatorSession, invalidateSession, loginOperator, onInvalidSession, OperatorApiError, sessionCredentials, sessionStorageKey, validateOperatorSession, type SessionCredentials } from './operatorSession';
+import { endOperatorSession, invalidateSession, loginOperator, onInvalidSession, OperatorApiError, sessionCredentials, sessionStorageKey, validateOperatorSession, setOperatorAvailability, type SessionCredentials } from './operatorSession';
 
 export function useOperatorSession() {
   const [session, setSession] = useState<OperationalSession | null>(null), [credentials, setCredentials] = useState<SessionCredentials | null>(null);
@@ -47,5 +47,14 @@ export function useOperatorSession() {
       else if (alive.current) setError(cause instanceof OperatorApiError ? cause.message : 'Não foi possível encerrar a sessão. Tente novamente.');
     } finally { operationBusy.current = false; if (alive.current) setBusy(false); }
   }
-  return { session, credentials, checking, busy, error, login, end, refresh };
+  async function setAvailability(available: boolean) {
+    if (operationBusy.current || !credentials) return;
+    operationBusy.current = true; epoch.current++; setBusy(true); setError('');
+    try { const current = await setOperatorAvailability(credentials, available); if (alive.current) setSession(current); }
+    catch (cause) {
+      if (cause instanceof OperatorApiError && cause.status === 401) invalidateSession(credentials.token);
+      else if (alive.current) setError(cause instanceof OperatorApiError ? cause.message : 'Não foi possível alterar a disponibilidade. Tente novamente.');
+    } finally { operationBusy.current = false; if (alive.current) setBusy(false); }
+  }
+  return { session, credentials, checking, busy, error, login, end, refresh, setAvailability };
 }

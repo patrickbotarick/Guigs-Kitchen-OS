@@ -235,6 +235,7 @@ model PizzaProductionHistory {
   commandId String @unique
   itemVersion Int
   reason String?
+  metadata Json?
 
   @@index([pizzaId, changedAt])
   @@index([operatorId, changedAt])
@@ -287,6 +288,7 @@ model OperatorSession {
   endedAt DateTime?
   expiresAt DateTime
   active Boolean @default(true)
+  available Boolean @default(true)
   history PizzaProductionHistory[]
   receipts PizzaCommandReceipt[]
   assignedPizzas PizzaItem[]

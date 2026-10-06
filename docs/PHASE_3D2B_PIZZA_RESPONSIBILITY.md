@@ -1,6 +1,6 @@
 # Fase 3D.2B — responsabilidade operacional por pizza
 
-Implementação local em 06/10/2026, sobre a Fase 3D.2A (`fb11075`). Sem distribuição automática, supervisor, forno ou finalização.
+Implementação local em 06/10/2026, sobre a Fase 3D.2A (`fb11075`), posteriormente fechada no commit `90f517f`. Este documento registra o escopo da 3D.2B, sem distribuição automática, supervisor, forno ou finalização. A evolução de distribuição e fila padrão está em [PHASE_3D2C_AUTO_ASSIGNMENT.md](PHASE_3D2C_AUTO_ASSIGNMENT.md).
 
 ## Assignment persistente
 
@@ -84,7 +84,7 @@ API: claim/repetição/concorrência, operador errado para claim/release/start/p
 
 Navegador com duas sessões/terminais e banco descartável: criar pelo balcão, start com reserva, terceiro visualiza sem operar, disputa com 200/409, release/reassunção via realtime, refresh, offline/evento perdido, reinício da API, logout bloqueado, pausa/release/troca, duas abas e dois terminais do mesmo operador, filtros e preservação de histórico. Regressões DEV, leitura persistida e recuperação de resposta perdida também são executadas.
 
-Aceite final: lint, typecheck, build; **106 testes API (17 novos) e 34 testes Assembly aprovados**. Quatro testes de navegador aprovados: DEV, leitura persistida, comandos com replay/409 e realtime com dois tablets/claims. Conferência visual em 1024×768: identidade, filtros e responsável cabem na tela; painel de montagem preservado. `prisma migrate diff` não detectou diferença entre banco e schema. Mensagens esperadas dos testes de rollback simulam falhas e não são falhas da suíte. Alterações 3D.2B permanecem locais para revisão, sem commit/push nesta execução; package-lock.json não foi alterado.
+Aceite final: lint, typecheck, build; **106 testes API (17 novos) e 34 testes Assembly aprovados**. Quatro testes de navegador aprovados: DEV, leitura persistida, comandos com replay/409 e realtime com dois tablets/claims. Conferência visual em 1024×768: identidade, filtros e responsável cabem na tela; painel de montagem preservado. `prisma migrate diff` não detectou diferença entre banco e schema. Mensagens esperadas dos testes de rollback simulam falhas e não são falhas da suíte. Alterações 3D.2B registradas no commit `90f517f`, após repetir as cinco validações; sem push. package-lock.json não foi alterado nesta fase.
 
 ## Riscos e próxima Fase 3D.2C
 

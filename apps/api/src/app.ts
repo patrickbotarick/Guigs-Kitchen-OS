@@ -8,8 +8,8 @@ import { createStructuredOrderSchema, type Order } from '@guigs/shared';
 import { pizzaCommandSchema } from '@guigs/shared';
 import { PizzaCommandConflictError, PizzaCommandNotFoundError, type PizzaCommandService } from './pizza-commands.js';
 import { type KitchenNotification } from '@guigs/shared';
-import { commandNotifications } from './kitchen-events.js';
-import { operatorLoginSchema } from '@guigs/shared';
+import { commandNotifications, creationAssignmentNotifications } from './kitchen-events.js';
+import { operatorLoginSchema, operatorAvailabilitySchema } from '@guigs/shared';
 import { OperationalAuthError, PinLoginError, LoginRateLimitError, SessionResponsibilityConflictError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
 
 export interface OrdersPort {
@@ -20,7 +20,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -31,6 +31,9 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
   if (operators) {
+    app.patch('/operators/session', async (req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').json(await operators.setAvailability(credentials(req), operatorAvailabilitySchema.parse(req.body).available)); } catch (error) { next(error); }
+    });
     app.post('/operators/session', async (req, res, next) => {
       try { res.set('Cache-Control', 'no-store').status(201).json(await operators.signIn(operatorLoginSchema.parse(req.body), req.ip ?? 'local')); } catch (error) { next(error); }
     });
@@ -55,8 +58,14 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   if (structured) {
     app.post('/orders/v2', async (req, res, next) => {
       try {
-        const result = await structured.create(createStructuredOrderSchema.parse(req.body));
-        if (!result.replayed) publish('order.created', result.order);
+        const input = createStructuredOrderSchema.parse(req.body);
+        const result = await structured.create(input);
+        if (!result.replayed) {
+          publish('order.created', result.order);
+          for (const notification of creationAssignmentNotifications(result.order, input.clientRequestId)) {
+            try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação de atribuição após commit:', error); }
+          }
+        }
         res.set('Idempotency-Replayed', String(result.replayed)).status(result.replayed ? 200 : 201).json(result.order);
       } catch (error) { next(error); }
     });

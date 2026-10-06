@@ -1,7 +1,7 @@
 import { randomBytes, scryptSync } from 'node:crypto';
 
 // Disposable databases only. Never invoked by the store's production seed.
-export const operatorFixtures = [{ name: 'João fixture', pin: '4826' }, { name: 'Carlos fixture', pin: '5937' }];
+export const operatorFixtures = [{ name: 'João fixture', pin: '4826' }, { name: 'Carlos fixture', pin: '5937' }, { name: 'Pedro fixture', pin: '6048' }];
 export async function seedOperatorFixtures(prisma) {
   for (const operator of operatorFixtures) {
     const salt = randomBytes(16), hash = scryptSync(operator.pin, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });

@@ -100,9 +100,9 @@ export class OperatorSessionService {
       return { session, token };
     } finally { this.loginBusy--; }
   }
-  private view(session: { id: string; operatorId: string; workstationId: string; startedAt: Date; expiresAt: Date; operator: { name: string }; workstation: { name: string } }) {
+  private view(session: { id: string; operatorId: string; workstationId: string; startedAt: Date; expiresAt: Date; available: boolean; operator: { name: string }; workstation: { name: string } }) {
     return operatorSessionSchema.parse({ sessionId: session.id, operatorId: session.operatorId, operatorName: session.operator.name,
-      workstationId: session.workstationId, workstationName: session.workstation.name, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString() });
+      workstationId: session.workstationId, workstationName: session.workstation.name, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), available: session.available });
   }
   async validate(credentials: SessionCredentials | undefined, db: SessionDatabase = this.prisma) {
     if (!credentials || !/^[a-f0-9]{64}$/.test(credentials.token) || !credentials.deviceKey) throw new OperationalAuthError();
@@ -111,6 +111,13 @@ export class OperatorSessionService {
     return { sessionId: session.id, operatorId: session.operatorId, workstationId: session.workstationId, view: this.view(session) };
   }
   async current(credentials: SessionCredentials) { return (await this.validate(credentials)).view; }
+  async setAvailability(credentials: SessionCredentials, available: boolean) {
+    return transactionRetry(this.prisma, async tx => {
+      const actor = await this.validate(credentials, tx);
+      const session = await tx.operatorSession.update({ where: { id: actor.sessionId }, data: { available }, include: { operator: true, workstation: true } });
+      return this.view(session);
+    });
+  }
   async end(credentials: SessionCredentials) {
     return transactionRetry(this.prisma, async tx => {
       const session = await this.validate(credentials, tx);

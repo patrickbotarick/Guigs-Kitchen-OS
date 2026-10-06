@@ -34,6 +34,8 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     assembly.on('pageerror', error => errors.push(error.message));
     await assembly.goto('http://127.0.0.1:5173/kitchen/assembly');
     await loginPin(assembly);
+    await assembly.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click();
+    await assembly.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await assembly.getByRole('heading', { name: 'Carregando pedidos...', exact: true }).waitFor();
     slow = false; release();
     await assembly.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();

@@ -38,7 +38,7 @@ export function CurrentOrder({ order, selectedPizzaId, now, onSelectPizza, onCom
   const pizzas = pizzasOf(order);
   return <section className="ka-current" aria-label={`Pedido atual #${order.number}`}>
     <OrderHeader order={order} now={now} />
-    <div className="ka-pizzas-heading"><h2>Pizzas do pedido ({pizzas.length})</h2><span role="status">Montagens concluídas ({assemblyCompletedPizzas(order)} / {pizzas.length})</span></div>
+    <div className="ka-pizzas-heading"><h2>Pizzas do pedido ({pizzas.length}){visiblePizzaIds && visiblePizzaIds.length < pizzas.length && <small> · exibidas {visiblePizzaIds.length}</small>}</h2><span role="status">Montagens concluídas ({assemblyCompletedPizzas(order)} / {pizzas.length})</span></div>
     <div className="ka-order-scroll" key={order.id}>
       {order.notes && <div className="ka-order-note" aria-label="Observação do pedido"><strong>Observação do pedido</strong><p>{order.notes}</p></div>}
       <div className="ka-pizza-grid">{pizzas.map((pizza, index) => (!visiblePizzaIds || visiblePizzaIds.includes(pizza.id)) && <PizzaCard key={pizza.id} pizza={pizza} index={index} selected={pizza.id === selectedPizzaId} onSelect={() => onSelectPizza(pizza.id)} />)}</div>

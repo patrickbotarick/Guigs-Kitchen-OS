@@ -358,10 +358,11 @@ A API foi retomada após a migration 3A e a leitura HTTP foi verificada sem cria
 
 A criação estruturada, catálogo compartilhado, idempotência transacional, snapshot/histórico inicial, formulário v2 e leitura HTTP explícita foram implementados. Estado e payload dessa etapa, nova migration aditiva, convivência v1/v2, validações e riscos estão em [PHASE_3B_STRUCTURED_CREATION.md](PHASE_3B_STRUCTURED_CREATION.md). A montagem em memória descrita nesse documento corresponde ao fechamento original da 3B.
 
-## 12. Roadmap técnico atualizado após 3D.2B
+## 12. Roadmap técnico atualizado após 3D.2C
 
 - Concluído: criação v2/catalog/snapshot e compatibilidade v1 (3B); leitura persistida Assembly (3C.1); comandos individuais transacionais/CAS/idempotência/histórico (3C.2); realtime versionado e recuperação (3D.1).
 - Concluído: identidade operacional/terminal/sessão (3D.2A), comandos autenticados e autoria histórica, conforme [PHASE_3D2A_OPERATOR_IDENTITY.md](PHASE_3D2A_OPERATOR_IDENTITY.md). Sem conversão retroativa de SYSTEM ou Worker legado.
-- Atual: 3D.2B implementa responsabilidade/claim, liberação explícita, start com reserva atômica, auditoria/CAS/idempotência/realtime, filtros e bloqueio de logout. [Contrato e limites](PHASE_3D2B_PIZZA_RESPONSIBILITY.md). Usa versão da pizza, sem claimExpiresAt ou expiração automática da reserva.
-- Próximo: 3D.2C deverá definir disponibilidade/recuperação e calcular carga por pizzas atribuídas ainda na montagem; só então distribuição automática auditável, com disputa transacional. Validar tablets reais, quedas, concorrência e carga. Nenhuma distribuição automática foi implementada na 3D.2B.
+- Concluído: 3D.2B (`90f517f`) implementa responsabilidade/claim, liberação explícita, start com reserva atômica, auditoria/CAS/idempotência/realtime, filtros e bloqueio de logout. [Contrato e limites](PHASE_3D2B_PIZZA_RESPONSIBILITY.md). Sem expiração automática de reservas.
+- Atual: 3D.2C distribui novas pizzas por menor carga de montagem e sorteio em empate, com disponibilidade por sessão, transação, AUTO_ASSIGNED e fila individual padrão. [Regras e limites](PHASE_3D2C_AUTO_ASSIGNMENT.md). Login/release não redistribuem pizzas antigas.
+- Próximo: validar tablets reais, saída de turno/disponibilidade, quedas e carga concorrente; depois recuperação supervisionada com auditoria e eventual presença/heartbeat. Sem pesos ou forno nesta fase.
 - Fases próprias posteriores: forno operacional e finalização/embalagem/despacho; estoque/ficha técnica e métricas/administração. Não foram iniciadas nesta entrega.

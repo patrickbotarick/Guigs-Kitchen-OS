@@ -39,7 +39,10 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
         await page.getByRole('button', { name: 'OK', exact: true }).click(); await page.getByText('PIN inválido ou terminal indisponível.', { exact: true }).waitFor();
         await page.screenshot({ path: resolve(screenshots, 'pin-tablet.png') });
       }
-      await loginPin(page, operatorFixtures[index].pin); await online(page).waitFor(); await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
+      await loginPin(page, operatorFixtures[index].pin);
+      await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click(); // Manual-claim regression. Automatic distribution has its own three-tablet suite.
+      await page.getByRole('button', { name: 'Fila geral', exact: true }).click();
+      await online(page).waitFor(); await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
     }
     const identities = await prisma.operatorSession.findMany({ where: { active: true }, include: { operator: true, workstation: true } });
     assert.equal(identities.length, 2); assert.notEqual(identities[0].workstationId, identities[1].workstationId);
@@ -71,7 +74,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: order.items[0].id }, orderBy: { itemVersion: 'asc' } });
     const joao = identities.find(session => session.operator.name === operatorFixtures[0].name), carlos = identities.find(session => session.operator.name === operatorFixtures[1].name);
     assert.deepEqual(history.slice(1).map(event => [event.operatorId, event.workstationId, event.operatorSessionId]), Array.from({ length: 5 }, () => [joao.operatorId, joao.workstationId, joao.id]));
-    for (const [index, page] of [pageA, pageB].entries()) { await page.reload(); await page.getByLabel('Identidade operacional', { exact: true }).waitFor(); assert.match(await page.getByLabel('Identidade operacional', { exact: true }).innerText(), new RegExp(operatorFixtures[index].name)); }
+    for (const [index, page] of [pageA, pageB].entries()) { await page.reload(); await page.getByLabel('Identidade operacional', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Fila geral', exact: true }).click(); assert.match(await page.getByLabel('Identidade operacional', { exact: true }).innerText(), new RegExp(operatorFixtures[index].name)); }
     assert.equal(await prisma.operatorSession.count(), 2, 'Refresh valida a sessão existente; não cria outra');
     console.info('Start assume atomicamente; João opera e Carlos visualiza com ações bloqueadas. Histórico e refresh aprovados.');
 
@@ -87,6 +90,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     const claimed = await (await a.request.get(`${apiOrigin}/orders/v2/${contested.id}`)).json();
     assert.equal(claimed.items[0].production.version, 1);
     await winner.reload(); await winner.getByText(/Montador: .*Sua pizza/).waitFor();
+    await winner.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await winner.getByRole('button', { name: 'Liberar pizza', exact: true }).click();
     await loser.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
     await loser.waitForFunction(() => !document.querySelector('.ka-start')?.disabled);
@@ -125,10 +129,12 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
     await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
     await loginPin(pageA, operatorFixtures[1].pin);
+    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
     assert.match(await pageA.getByLabel('Identidade operacional', { exact: true }).innerText(), /Carlos fixture/);
     await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).click();
     await pageA.getByRole('button', { name: 'Liberar pizza', exact: true }).waitFor();
     const sameOperatorTab = await a.newPage(); await sameOperatorTab.goto(`${webOrigin}/kitchen/assembly`);
+    await sameOperatorTab.getByRole('button', { name: 'Fila geral', exact: true }).click();
     await sameOperatorTab.getByText(/Montador: Carlos fixture.*Sua pizza/).waitFor();
     await action(sameOperatorTab, pageB, 'Retomar', 'Pausar');
     await action(pageB, pageA, 'Pausar', 'Retomar');

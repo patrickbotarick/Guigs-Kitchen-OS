@@ -26,7 +26,7 @@ function OrderQueueCard({ order, selected, now, onSelect }: { order: AssemblyOrd
   </button>;
 }
 export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, onToggleSort, mode, loading, refreshing, error, reload }: { orders: AssemblyOrder[]; selectedId: string | null; now: number; onSelect: (id: string) => void; sortDirection: QueueSortDirection; onToggleSort: () => void; mode: 'API' | 'DEMO'; loading: boolean; refreshing: boolean; error: string; reload: () => void }) {
-  const { state, commandBusy, pendingCommand, commandNotice, retryCommand, connection, operatorSession, sessionBusy, sessionError, endSession } = useAssembly();
+  const { state, commandBusy, pendingCommand, commandNotice, retryCommand, connection, operatorSession, sessionBusy, sessionError, endSession, setAvailability } = useAssembly();
   const [confirmSwitch, setConfirmSwitch] = useState(false);
   const inProgress = state.orders.some(order => order.items.some(pizza => pizza.assignment?.operatorId === operatorSession?.operatorId && ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'].includes(pizza.status)));
   return <aside className="ka-queue" aria-labelledby="ka-queue-title">
@@ -34,6 +34,7 @@ export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, o
     <p className="ka-sort-label">{sortDirection === 'ASC' ? 'Mais antigo primeiro' : 'Mais recente primeiro'}</p>
     {mode === 'API' && <span className={`ka-connection ka-connection-${connection.toLowerCase()}`} role="status" aria-label="Conexão Assembly">{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[connection]}</span>}
     {operatorSession && <div className="ka-operator-identity"><span aria-label="Identidade operacional">{operatorSession.operatorName} • {operatorSession.workstationName}</span>
+      <button type="button" aria-label="Receber novas pizzas neste tablet" aria-pressed={operatorSession.available} disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => void setAvailability(!operatorSession.available)}>{operatorSession.available ? 'Recebendo neste tablet' : 'Suspenso neste tablet'}</button>
       <button type="button" disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => { if (inProgress) setConfirmSwitch(true); else void endSession(); }}>Trocar montador</button>
       {confirmSwitch && <div role="alert"><p>Há pizzas sob sua responsabilidade. Pause e libere as pizzas antes de trocar montador.</p><button type="button" onClick={() => setConfirmSwitch(false)}>Continuar montando</button></div>}
       {sessionError && <p role="alert">{sessionError}</p>}

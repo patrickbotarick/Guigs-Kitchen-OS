@@ -2,7 +2,7 @@
 
 Protótipo local da operação da cozinha: criar pedidos fictícios, persistir em SQLite, avançar por estados validados e acompanhar o histórico em tempo real. O escopo e as fases futuras estão em [BASE_DO_PROJETO.md](BASE_DO_PROJETO.md).
 
-A **Fila de Montagem** é um módulo para tablets dentro deste frontend: lê pedidos v2 persistidos, executa comandos autenticados por PIN e sincroniza por realtime. Na Fase 3D.2B, inclui responsabilidade por pizza e filtros de pizzas próprias/disponíveis. O simulador local permanece separado em modo DEV. Regras e validações em [PHASE_3D2B_PIZZA_RESPONSIBILITY.md](docs/PHASE_3D2B_PIZZA_RESPONSIBILITY.md).
+A **Fila de Montagem** é um módulo para tablets dentro deste frontend: lê pedidos v2 persistidos, executa comandos autenticados por PIN e sincroniza por realtime. Inclui responsabilidade por pizza e, na Fase 3D.2C, distribui novas pizzas pela menor carga dos operadores disponíveis, com sorteio em empate. Abre em Minhas pizzas; Fila geral e Disponíveis continuam acessíveis. O simulador local permanece separado em modo DEV. [Regras de responsabilidade](docs/PHASE_3D2B_PIZZA_RESPONSIBILITY.md) e [distribuição automática](docs/PHASE_3D2C_AUTO_ASSIGNMENT.md).
 
 ## Requisitos
 

@@ -25,6 +25,7 @@
     "test:assembly:persisted:browser": "node scripts/assembly-persisted-browser-smoke.mjs",
     "test:assembly:commands:browser": "node scripts/assembly-commands-browser-smoke.mjs",
     "test:assembly:realtime:browser": "node scripts/assembly-realtime-browser-smoke.mjs",
+    "test:assembly:auto-assignment:browser": "node scripts/assembly-auto-assignment-browser-smoke.mjs",
     "test:structured:browser": "node scripts/structured-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web"
   },
