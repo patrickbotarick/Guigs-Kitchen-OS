@@ -34,7 +34,29 @@ export class FinishingService {
           if (!order.pizzaItems.some(pizza => ['BAKED', 'FINISHING', 'FINISHED'].includes(pizza.state))) throw new PizzaCommandConflictError('Ainda não há pizza disponível para finalização.');
           const now = new Date();
           let event = '', metadata: Record<string, unknown> = { command: input.command, clientCommandId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId };
-          if (input.command === 'START_FINISHING' || input.command === 'CHECK_PIZZA') {
+          const correction = input.command === 'UNCHECK_PIZZA' || input.command === 'UNCHECK_EXTRA' || input.command === 'UNCONFIRM_PACKAGING';
+          if (correction) metadata.reason = input.reason || null;
+          if (input.command === 'UNCHECK_PIZZA') {
+            const pizza = order.pizzaItems.find(pizza => pizza.id === input.pizzaId);
+            if (!pizza) throw new PizzaCommandNotFoundError('Pizza não pertence a este pedido.');
+            if (pizza.version !== input.expectedItemVersion || pizza.state !== 'FINISHED') throw new PizzaCommandConflictError('Pizza atualizada ou ainda não conferida.');
+            const changed = await tx.pizzaItem.updateMany({ where: { id: pizza.id, version: input.expectedItemVersion, state: 'FINISHED' }, data: { state: 'FINISHING', finishedAt: null, version: { increment: 1 } } });
+            if (changed.count !== 1) throw new PizzaCommandConflictError('Pizza atualizada por outro terminal.');
+            event = 'PIZZA_UNCHECKED';
+            metadata = { ...metadata, pizzaId: pizza.id, itemVersion: pizza.version + 1, previousFinishedAt: pizza.finishedAt?.toISOString() ?? null };
+            await tx.pizzaProductionHistory.create({ data: { pizzaId: pizza.id, eventType: event, fromState: 'FINISHED', toState: 'FINISHING', changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId, commandId: clientCommandId, itemVersion: pizza.version + 1, reason: input.reason || null, metadata: metadata as Prisma.InputJsonValue } });
+          } else if (input.command === 'UNCHECK_EXTRA') {
+            const extra = order.extraItems.find(extra => extra.id === input.extraId);
+            if (!extra) throw new PizzaCommandNotFoundError('Extra não pertence a este pedido.');
+            if (extra.version !== input.expectedItemVersion || extra.state === 'CANCELLED' || input.checkedQuantity >= extra.checkedQuantity) throw new PizzaCommandConflictError('Reduza a quantidade conferida; extra atualizado ou cancelado.');
+            const changed = await tx.extraItem.updateMany({ where: { id: extra.id, version: input.expectedItemVersion, state: extra.state }, data: { checkedQuantity: input.checkedQuantity, state: 'WAITING_FINISHING', checkedAt: input.checkedQuantity ? now : null, checkedBy: input.checkedQuantity ? actor.operatorId : null, version: { increment: 1 } } });
+            if (changed.count !== 1) throw new PizzaCommandConflictError('Extra atualizado por outro terminal.');
+            event = 'EXTRA_UNCHECKED'; metadata = { ...metadata, extraId: extra.id, checkedQuantity: input.checkedQuantity, previousCheckedQuantity: extra.checkedQuantity, previousCheckedAt: extra.checkedAt?.toISOString() ?? null, previousCheckedBy: extra.checkedBy, itemVersion: extra.version + 1 };
+          } else if (input.command === 'UNCONFIRM_PACKAGING') {
+            if (!order.packingFinishedAt || !order.packingFinishedBy) throw new PizzaCommandConflictError('Embalagem ainda não confirmada.');
+            await tx.order.update({ where: { id: orderId }, data: { packingFinishedAt: null, packingFinishedBy: null } });
+            event = 'PACKAGING_UNCONFIRMED'; metadata = { ...metadata, automatic: false, previousPackingFinishedAt: order.packingFinishedAt.toISOString(), previousPackingFinishedBy: order.packingFinishedBy };
+          } else if (input.command === 'START_FINISHING' || input.command === 'CHECK_PIZZA') {
             const pizza = order.pizzaItems.find(pizza => pizza.id === input.pizzaId), from = input.command === 'START_FINISHING' ? 'BAKED' : 'FINISHING', to = input.command === 'START_FINISHING' ? 'FINISHING' : 'FINISHED';
             if (!pizza) throw new PizzaCommandNotFoundError('Pizza não pertence a este pedido.');
             if (pizza.version !== input.expectedItemVersion || pizza.state !== from) throw new PizzaCommandConflictError('Pizza atualizada ou ainda não disponível para esta conferência.');
@@ -70,6 +92,12 @@ export class FinishingService {
           const changedOrder = await tx.order.updateMany({ where: { id: orderId, version: input.expectedVersion }, data: { status, version: { increment: 1 }, ...(input.command === 'RELEASE_TO_DISPATCH' ? { packingFinishedAt: order.packingFinishedAt } : {}) } });
           if (changedOrder.count !== 1) throw new PizzaCommandConflictError('Pedido atualizado por outro terminal.');
           await tx.orderStatusHistory.create({ data: { orderId, fromStatus: order.status, toStatus: status, changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, metadata: JSON.stringify({ ...metadata, event, orderVersion: order.version + 1 }) } });
+          // A corrected required item invalidates packing in this same transaction.
+          // Append a separate event: never erase the original packing confirmation.
+          if ((input.command === 'UNCHECK_PIZZA' || input.command === 'UNCHECK_EXTRA') && (order.packingFinishedAt || order.packingFinishedBy)) {
+            await tx.order.update({ where: { id: orderId }, data: { packingFinishedAt: null, packingFinishedBy: null } });
+            await tx.orderStatusHistory.create({ data: { orderId, fromStatus: status, toStatus: status, changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, metadata: JSON.stringify({ ...metadata, event: 'PACKAGING_UNCONFIRMED', automatic: true, triggerEvent: event, previousPackingFinishedAt: order.packingFinishedAt?.toISOString() ?? null, previousPackingFinishedBy: order.packingFinishedBy, orderVersion: order.version + 1 }) } });
+          }
           const read = await loadCompatibleOrder(tx, orderId);
           if (!read || read.legacy) throw new Error('Falha na leitura da finalização.');
           const result = finishingCommandResultSchema.parse({ order: read.order, clientCommandId, replayed: false });

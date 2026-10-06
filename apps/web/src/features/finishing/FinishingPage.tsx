@@ -8,6 +8,7 @@ import type { SessionCredentials } from '../kitchen/operatorSession';
 import { ovenFlavor, elapsedSeconds, formatDuration } from '../oven/oven';
 import { finishingQueue, finishingProgress } from './finishing';
 import { useFinishing } from './useFinishing';
+import { CorrectionDialog, type CorrectionInput } from './CorrectionDialog';
 import '../kitchen/assembly.css';
 import '../oven/oven.css';
 import './finishing.css';
@@ -42,6 +43,8 @@ function OperationalFinishing({ session, credentials, sessionBusy, sessionError,
 }
 function OrderConference({ order, now, enabled, act }: { order: Order; now: number; enabled: boolean; act: (input: FinishingCommandInput) => void }) {
   const progress = finishingProgress(order), common = () => ({ expectedVersion: order.version, clientCommandId: clientId() });
+  // Keep the version captured at opening: a concurrent change must produce 409.
+  const [correction, setCorrection] = useState<{ input: CorrectionInput; label: string } | null>(null);
   return <section className="finishing-detail" aria-label={`Conferência do pedido #${order.number}`} data-order-version={order.version}>
     <header><h2>Pedido #{order.number}</h2><p>{order.customerName} · {({ DELIVERY: 'Delivery', PICKUP: 'Retirada', COUNTER: 'Balcão' })[order.fulfillmentType]} · {channels[order.channel]}</p><p>{progress.pizzas} pizzas · {progress.extraUnits} unidades de extras ({progress.extraTypes} tipos) · desde criação {formatDuration(elapsedSeconds(order.createdAt, now))}</p><strong>{progress.checked} / {progress.total} itens conferidos · {progress.available} / {progress.pizzas} pizzas disponíveis</strong>{order.notes && <p className="oven-notes">Pedido: {order.notes}</p>}</header>
     <h3>Pizzas</h3><div className="finishing-items">{order.items.filter(item => item.kind === 'PIZZA').map(pizza => <article className={`finishing-item ${pizza.production.state === 'FINISHED' ? 'checked' : ''}`} key={pizza.id} data-pizza-id={pizza.id}>
@@ -50,10 +53,14 @@ function OrderConference({ order, now, enabled, act }: { order: Order; now: numb
       {pizza.production.state === 'BAKED' && <button className="button secondary" disabled={!enabled} onClick={() => act({ ...common(), command: 'START_FINISHING', pizzaId: pizza.id, expectedItemVersion: pizza.production.version })}>Iniciar conferência</button>}
       {pizza.production.state === 'FINISHING' && <button className="button primary" disabled={!enabled} onClick={() => act({ ...common(), command: 'CHECK_PIZZA', pizzaId: pizza.id, expectedItemVersion: pizza.production.version })}>Conferir pizza</button>}
       {pizza.production.state === 'FINISHED' && <strong>✓ Pizza conferida</strong>}
+      {pizza.production.state === 'FINISHED' && <button className="button subtle" disabled={!enabled} onClick={() => setCorrection({ input: { ...common(), command: 'UNCHECK_PIZZA', pizzaId: pizza.id, expectedItemVersion: pizza.production.version }, label: `Desfazer conferência da pizza ${pizza.position + 1} — ${ovenFlavor(pizza)}?` })}>Corrigir</button>}
     </article>)}</div>
     <h3>Extras, bebidas e complementos</h3><div className="finishing-items">{order.items.filter(item => item.kind === 'EXTRA').map(extra => <article className={`finishing-item ${extra.state === 'FINISHED' ? 'checked' : ''}`} key={extra.id} data-extra-id={extra.id}><h4>{extra.quantity}× {extra.snapshot.name}</h4><p>{extra.checkedQuantity} / {extra.quantity} unidades conferidas{extra.state === 'CANCELLED' ? ' · Cancelado' : ''}</p>{extra.notes && <p className="oven-notes">{extra.notes}</p>}
-      {extra.state === 'WAITING_FINISHING' && <button className="button secondary" disabled={!enabled} onClick={() => act({ ...common(), command: 'CHECK_EXTRA', extraId: extra.id, expectedItemVersion: extra.version, checkedQuantity: extra.checkedQuantity + 1 })}>Conferir 1 unidade</button>}{extra.state === 'FINISHED' && <strong>✓ Extra conferido</strong>}</article>)}{!progress.extraTypes && <p>Pedido sem extras</p>}</div>
+      {extra.state === 'WAITING_FINISHING' && <button className="button secondary" disabled={!enabled} onClick={() => act({ ...common(), command: 'CHECK_EXTRA', extraId: extra.id, expectedItemVersion: extra.version, checkedQuantity: extra.checkedQuantity + 1 })}>Conferir 1 unidade</button>}{extra.state === 'FINISHED' && <strong>✓ Extra conferido</strong>}
+      {extra.state !== 'CANCELLED' && extra.checkedQuantity > 0 && <button className="button subtle" disabled={!enabled} onClick={() => setCorrection({ input: { ...common(), command: 'UNCHECK_EXTRA', extraId: extra.id, expectedItemVersion: extra.version, checkedQuantity: extra.checkedQuantity - 1 }, label: `Reduzir conferência de ${extra.snapshot.name}? Atualmente: ${extra.checkedQuantity} de ${extra.quantity}.` })}>Corrigir</button>}</article>)}{!progress.extraTypes && <p>Pedido sem extras</p>}</div>
     <div className="finishing-release"><button className="button secondary" disabled={!enabled || !progress.allChecked || Boolean(order.packingFinishedAt)} onClick={() => act({ ...common(), command: 'CONFIRM_PACKAGING' })}>{order.packingFinishedAt ? '✓ Embalagem conferida' : 'Confirmar embalagem'}</button>
+      {order.packingFinishedAt && <button className="button subtle" disabled={!enabled} onClick={() => setCorrection({ input: { ...common(), command: 'UNCONFIRM_PACKAGING' }, label: 'Desfazer confirmação da embalagem?' })}>Corrigir embalagem</button>}
       <button className="button primary" disabled={!enabled || !progress.canRelease} onClick={() => act({ ...common(), command: 'RELEASE_TO_DISPATCH' })}>Liberar para despacho</button>{!progress.canRelease && <p>Confira todas as pizzas, todas as unidades dos extras e a embalagem.</p>}</div>
+    {correction && <CorrectionDialog key={correction.input.clientCommandId} {...correction} enabled={enabled} cancel={() => setCorrection(null)} confirm={input => { setCorrection(null); act(input); }} />}
   </section>;
 }

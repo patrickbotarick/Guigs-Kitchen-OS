@@ -160,6 +160,9 @@ export const finishingCommandSchema = z.discriminatedUnion('command', [
   z.object({ ...finishingIntent, command: z.literal('CHECK_EXTRA'), extraId: id, expectedItemVersion: z.number().int().nonnegative(), checkedQuantity: z.number().int().min(1).max(30) }).strict(),
   z.object({ ...finishingIntent, command: z.literal('CONFIRM_PACKAGING') }).strict(),
   z.object({ ...finishingIntent, command: z.literal('RELEASE_TO_DISPATCH') }).strict(),
+  z.object({ ...finishingPizzaIntent, command: z.literal('UNCHECK_PIZZA'), reason: z.string().trim().max(500).optional() }).strict(),
+  z.object({ ...finishingIntent, command: z.literal('UNCHECK_EXTRA'), extraId: id, expectedItemVersion: z.number().int().nonnegative(), checkedQuantity: z.number().int().min(0).max(30), reason: z.string().trim().max(500).optional() }).strict(),
+  z.object({ ...finishingIntent, command: z.literal('UNCONFIRM_PACKAGING'), reason: z.string().trim().max(500).optional() }).strict(),
 ]);
 export type FinishingCommandInput = z.infer<typeof finishingCommandSchema>;
 export const finishingCommandResultSchema = z.object({ order: structuredOrderSchema, clientCommandId: z.string().uuid(), replayed: z.boolean() }).strict();

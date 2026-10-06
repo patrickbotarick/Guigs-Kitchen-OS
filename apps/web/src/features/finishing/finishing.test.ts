@@ -34,3 +34,18 @@ describe('fila e critérios de finalização', () => {
     const refreshed = new KitchenReconciliation<Order>(order => order); refreshed.reconcile(state.orders(), 0); expect(finishingQueue(refreshed.orders())).toEqual([]);
   });
 });
+
+describe('prontidão após correção confirmada', () => {
+  it('reconciliação versionada reduz progresso e invalida liberação, inclusive após refresh', () => {
+    const state = new KitchenReconciliation<Order>(value => value), packed = order([pizza('FINISHED'), extra(2, 2, 'FINISHED')], 1, 'FINISHING', true);
+    state.confirm(packed); const read = state.beginRead();
+    const corrected = { ...order([pizza('FINISHED'), extra(2, 1)], 1), version: 2 };
+    state.confirm(corrected);
+    const result = state.reconcile([packed], read)[0]; expect(finishingProgress(result)).toMatchObject({ checked: 2, total: 3, allChecked: false, canRelease: false });
+    const refresh = new KitchenReconciliation<Order>(value => value); refresh.reconcile([corrected], 0); expect(finishingProgress(refresh.orders()[0]).canRelease).toBe(false);
+  });
+  it('pizza desmarcada volta a conferência e embalagem desmarcada exige confirmação', () => {
+    expect(finishingProgress(order([pizza('FINISHING'), pizza('FINISHED', 'p2')]))).toMatchObject({ checked: 1, total: 2, allChecked: false, canRelease: false });
+    expect(finishingProgress(order([pizza('FINISHED')]))).toMatchObject({ allChecked: true, canRelease: false });
+  });
+});

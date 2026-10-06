@@ -378,3 +378,7 @@ A criação estruturada, catálogo compartilhado, idempotência transacional, sn
 ### Evolução 5A — finalização e conferência
 
 4B fechada em `a8534d1`. **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE**; piloto físico pendente. Etapa atual: estação por pedido em `/kitchen/finishing`, conferência de pizzas/extra por unidade, embalagem persistente e release explícito WAITING_DISPATCH, com autoria/CAS/idempotência/realtime e migration aditiva só de recibos. [Contrato/testes/limites 5A](PHASE_5A_FINISHING.md). Próximo: revisão/commit 5A, piloto ponta a ponta e definição de correções operacionais/contrato 5B. Despacho/entrega não implementados.
+
+### Evolução 5B.1 — correções antes do fechamento
+
+5A fechada no commit `e05d45e`. Etapa atual: UNCHECK_PIZZA/UNCHECK_EXTRA/UNCONFIRM_PACKAGING, confirmação simples e motivo opcional, histórico preservado, invalidação automática de embalagem e prontidão recalculada na mesma transação. CAS/idempotência/realtime mantidos; WAITING_DISPATCH bloqueia novas correções normais. Sem migration. [Contrato, testes e limites 5B.1](PHASE_5B1_FINISHING_CORRECTIONS.md). Próximo: revisar/commitar 5B.1, piloto físico e contrato da Fase 5B.2 — Despacho; não implementada nesta entrega.

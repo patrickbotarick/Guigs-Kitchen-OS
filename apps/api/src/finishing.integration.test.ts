@@ -57,8 +57,8 @@ afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-j
 const finishEndpoint = (order: Order) => `/orders/v2/${order.id}/finishing/commands`;
 function finishInput(order: Order, command: FinishingCommandInput['command'], index = 0): FinishingCommandInput {
   const common = { expectedVersion: order.version, clientCommandId: randomUUID() };
-  if (command === 'START_FINISHING' || command === 'CHECK_PIZZA') { const pizza = order.items.filter(item => item.kind === 'PIZZA')[index]; return { ...common, command, pizzaId: pizza.id, expectedItemVersion: pizza.production.version }; }
-  if (command === 'CHECK_EXTRA') { const extra = order.items.filter(item => item.kind === 'EXTRA')[index]; return { ...common, command, extraId: extra.id, expectedItemVersion: extra.version, checkedQuantity: extra.quantity }; }
+  if (command === 'START_FINISHING' || command === 'CHECK_PIZZA' || command === 'UNCHECK_PIZZA') { const pizza = order.items.filter(item => item.kind === 'PIZZA')[index]; return { ...common, command, pizzaId: pizza.id, expectedItemVersion: pizza.production.version }; }
+  if (command === 'CHECK_EXTRA' || command === 'UNCHECK_EXTRA') { const extra = order.items.filter(item => item.kind === 'EXTRA')[index]; return { ...common, command, extraId: extra.id, expectedItemVersion: extra.version, checkedQuantity: command === 'CHECK_EXTRA' ? extra.quantity : Math.max(0, extra.checkedQuantity - 1) }; }
   return { ...common, command };
 }
 async function run(order: Order, command: FinishingCommandInput['command'], auth: Awaited<ReturnType<typeof login>>, index = 0) {
@@ -158,5 +158,106 @@ describe('finalização por pedido', () => {
     expect((await request(app).post('/orders/v2').send({ clientRequestId: randomUUID(), customerName: 'Extras only', fulfillmentType: 'PICKUP', channel: 'COUNTER', pizzas: [], extras: [{ extraCatalogId: 'molho-extra', quantity: 1, notes: null }] })).status).toBe(400);
     const { a, order } = await setup(); const old = await request(app).post('/orders').send({ customerName: 'Legacy', type: 'PICKUP', items: [{ name: 'Pizza antiga', size: 'Grande' }] }); expect(old.status).toBe(201);
     expect((await request(app).get(`/orders/${old.body.id}`)).status).toBe(200); expect((await request(app).post(`/orders/v2/${old.body.id}/finishing/commands`).set(a.headers).send(finishInput(order, 'CONFIRM_PACKAGING'))).status).toBe(404);
+  });
+});
+
+describe('correções auditáveis antes do despacho', () => {
+  const audit = async (id: string) => (await prisma.orderStatusHistory.findMany({ where: { orderId: id }, orderBy: { changedAt: 'asc' } })).filter(row => row.metadata).map(row => ({ ...JSON.parse(row.metadata!), changedAt: row.changedAt }));
+  it('desfaz pizza, preserva início/snapshot e eventos, invalida embalagem e permite reconferência', async () => {
+    const { order, a, b } = await setup(2), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a);
+    const payload = { ...finishInput(packed, 'UNCHECK_PIZZA'), reason: 'Etiqueta incorreta' }, before = Date.now();
+    const response = await request(app).post(finishEndpoint(order)).set(b.headers).send(payload); expect(response.status).toBe(200);
+    const corrected = response.body.order as Order, old = packed.items[0], pizza = corrected.items[0]; if (old.kind !== 'PIZZA' || pizza.kind !== 'PIZZA') throw new Error('Pizza');
+    expect(pizza.production).toMatchObject({ state: 'FINISHING', finishedAt: null, finishingStartedAt: old.production.finishingStartedAt, version: old.production.version + 1 }); expect(pizza.snapshot).toEqual(old.snapshot);
+    expect(corrected).toMatchObject({ status: 'FINISHING', version: packed.version + 1, packingFinishedAt: null, packingFinishedBy: null });
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(corrected, 'RELEASE_TO_DISPATCH'))).status).toBe(409);
+    const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: pizza.id, eventType: { in: ['PIZZA_CHECKED', 'PIZZA_UNCHECKED'] } }, orderBy: { itemVersion: 'asc' } });
+    expect(history).toMatchObject([{ eventType: 'PIZZA_CHECKED', operatorId: a.session.operatorId }, { eventType: 'PIZZA_UNCHECKED', fromState: 'FINISHED', toState: 'FINISHING', operatorId: b.session.operatorId, operatorSessionId: b.session.sessionId, workstationId: b.session.workstationId, reason: 'Etiqueta incorreta' }]);
+    expect(history[1].changedAt.getTime()).toBeGreaterThanOrEqual(before); expect(history[1].metadata).toMatchObject({ previousFinishedAt: old.production.finishedAt });
+    const events = await audit(order.id); expect(events.filter(e => e.event === 'PACKAGING_UNCONFIRMED')).toMatchObject([{ automatic: true, triggerEvent: 'PIZZA_UNCHECKED', clientCommandId: payload.clientCommandId, previousPackingFinishedAt: packed.packingFinishedAt }]);
+    const checked = await run(corrected, 'CHECK_PIZZA', a); expect(checked.items[0]).toMatchObject({ production: { state: 'FINISHED', finishedAt: expect.any(String) } });
+    expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId: pizza.id, eventType: 'PIZZA_CHECKED' } })).toBe(2);
+  });
+  it('cenário integrado: 2 pizzas/2 extras, correção parcial, bloqueio, reconferência, embalagem e fechamento', async () => {
+    const { order, a } = await setup(2); let current = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a);
+    current = await run(current, 'UNCHECK_EXTRA', a, 1);
+    expect(current.items.filter(i => i.kind === 'EXTRA')).toMatchObject([{ checkedQuantity: 1, state: 'FINISHED' }, { checkedQuantity: 1, state: 'WAITING_FINISHING', checkedBy: a.session.operatorId }]); expect(current.packingFinishedAt).toBeNull();
+    for (const command of ['CONFIRM_PACKAGING', 'RELEASE_TO_DISPATCH'] as const) expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(current, command))).status).toBe(409);
+    current = await run(current, 'CHECK_EXTRA', a, 1); current = await run(current, 'CONFIRM_PACKAGING', a); current = await run(current, 'RELEASE_TO_DISPATCH', a);
+    expect(current.status).toBe('WAITING_DISPATCH'); expect((await request(app).get(`/orders/v2/${order.id}`)).body).toEqual(current);
+    for (const command of ['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'] as const) expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(current, command))).status).toBe(409);
+    const events = await audit(order.id); expect(events.filter(e => e.event === 'EXTRA_UNCHECKED')).toMatchObject([{ previousCheckedQuantity: 2, checkedQuantity: 1, reason: null }]); expect(events.filter(e => e.event === 'PACKAGING_CONFIRMED')).toHaveLength(2);
+  });
+  it('extra parcialmente conferido pode voltar a zero, sem apagar eventos', async () => {
+    const { order, a } = await setup(), payload = finishInput(order, 'CHECK_EXTRA', 1);
+    const partial = await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...payload, checkedQuantity: 1 }); expect(partial.status).toBe(200);
+    const current = await run(partial.body.order, 'UNCHECK_EXTRA', a, 1); expect(current.items.filter(i => i.kind === 'EXTRA')[1]).toMatchObject({ checkedQuantity: 0, checkedAt: null, checkedBy: null, state: 'WAITING_FINISHING' });
+    expect((await audit(order.id)).filter(e => ['EXTRA_CHECKED', 'EXTRA_UNCHECKED'].includes(e.event))).toMatchObject([{ event: 'EXTRA_CHECKED', checkedQuantity: 1 }, { event: 'EXTRA_UNCHECKED', checkedQuantity: 0 }]);
+  });
+  it('desfaz somente embalagem e exige nova confirmação sem desfazer itens', async () => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), corrected = await run(packed, 'UNCONFIRM_PACKAGING', a);
+    expect(corrected.items).toEqual(packed.items); expect(corrected.packingFinishedAt).toBeNull(); expect(corrected.packingFinishedBy).toBeNull();
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(corrected, 'RELEASE_TO_DISPATCH'))).status).toBe(409);
+    expect((await audit(order.id)).filter(e => e.event === 'PACKAGING_UNCONFIRMED')).toMatchObject([{ automatic: false, reason: null, previousPackingFinishedBy: a.session.operatorId }]);
+  });
+  it('correção sem embalagem não inventa invalidação e respeita pedido parcial OVEN', async () => {
+    const { order, a } = await setup(2, 1), checked = await run(await run(order, 'START_FINISHING', a), 'CHECK_PIZZA', a), corrected = await run(checked, 'UNCHECK_PIZZA', a);
+    expect(corrected.status).toBe('OVEN'); expect((await audit(order.id)).some(e => e.event === 'PACKAGING_UNCONFIRMED')).toBe(false);
+  });
+  it('rejeita correção sem conferência, quantidade negativa/noop/maior, versão e item incorretos', async () => {
+    const { order, a } = await setup();
+    for (const command of ['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'] as const) expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(order, command))).status).toBe(409);
+    const checked = await checkItems(order, a), payload = finishInput(checked, 'UNCHECK_EXTRA', 1);
+    for (const quantity of [-1, 2, 3]) expect((await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...payload, checkedQuantity: quantity })).status).toBe(quantity < 0 ? 400 : 409);
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...payload, expectedItemVersion: 99 })).status).toBe(409);
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...payload, extraId: order.items[0].id })).status).toBe(404);
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...finishInput(checked, 'UNCHECK_PIZZA'), reason: 'x'.repeat(501) })).status).toBe(400);
+    expect(await creation.get(order.id)).toEqual(checked);
+  });
+  it.each(['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'] as const)('%s exige sessão e presença válidas', async command => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), payload = finishInput(packed, command);
+    expect((await request(app).post(finishEndpoint(order)).send(payload)).status).toBe(401);
+    await prisma.operatorSession.update({ where: { id: a.session.sessionId }, data: { lastSeenAt: new Date(Date.now() - 60001) } });
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(payload)).status).toBe(409);
+  });
+  it('correção vence e release antigo conflita; correção/release simultâneos têm um vencedor', async () => {
+    const { order, a, b } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a);
+    const corrected = await run(packed, 'UNCHECK_EXTRA', a, 1);
+    expect((await request(app).post(finishEndpoint(order)).set(b.headers).send(finishInput(packed, 'RELEASE_TO_DISPATCH'))).status).toBe(409); expect(await creation.get(order.id)).toEqual(corrected);
+    const repacked = await run(await run(corrected, 'CHECK_EXTRA', a, 1), 'CONFIRM_PACKAGING', a);
+    const responses = await Promise.all([request(app).post(finishEndpoint(order)).set(a.headers).send(finishInput(repacked, 'UNCHECK_PIZZA')), request(app).post(finishEndpoint(order)).set(b.headers).send(finishInput(repacked, 'RELEASE_TO_DISPATCH'))]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]); const current = (await creation.get(order.id))!; expect(current.version).toBe(repacked.version + 1);
+    if (current.status === 'WAITING_DISPATCH') expect(current.items[0]).toMatchObject({ production: { state: 'FINISHED' } }); else { expect(current.packingFinishedAt).toBeNull(); expect(current.items[0]).toMatchObject({ production: { state: 'FINISHING' } }); }
+  });
+  it('duplicado simultâneo gera um recibo, uma correção e uma invalidação; replay não emite e conteúdo diferente conflita', async () => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), payload = finishInput(packed, 'UNCHECK_EXTRA', 1); notifications.length = 0;
+    const responses = await Promise.all([1, 2].map(() => request(app).post(finishEndpoint(order)).set(a.headers).send(payload))); expect(responses.every(r => r.status === 200)).toBe(true); expect(responses.filter(r => r.body.replayed)).toHaveLength(1); expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({ type: 'kitchen.order.updated', payload: { orderId: order.id, version: packed.version + 1, commandId: payload.clientCommandId } });
+    expect((await audit(order.id)).filter(e => e.event === 'EXTRA_UNCHECKED')).toHaveLength(1); expect((await audit(order.id)).filter(e => e.event === 'PACKAGING_UNCONFIRMED')).toHaveLength(1);
+    expect((await request(app).post(finishEndpoint(order)).set(a.headers).send({ ...payload, reason: 'Diferente' })).status).toBe(409);
+    let current = (await creation.get(order.id))!; current = await run(current, 'CHECK_EXTRA', a, 1); current = await run(current, 'CONFIRM_PACKAGING', a); current = await run(current, 'RELEASE_TO_DISPATCH', a); expect(current.status).toBe('WAITING_DISPATCH');
+    const before = notifications.length, replay = await request(app).post(finishEndpoint(order)).set(a.headers).send(payload); expect(replay.status).toBe(200); expect(replay.body.replayed).toBe(true); expect(notifications).toHaveLength(before); expect((await creation.get(order.id))?.status).toBe('WAITING_DISPATCH');
+  });
+  it.each(['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'] as const)('rollback de %s restaura itens, embalagem, histórico e recibo', async command => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), payload = finishInput(packed, command), events = await audit(order.id), pizzaEvents = await prisma.pizzaProductionHistory.count(); notifications.length = 0;
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_correction BEFORE INSERT ON FinishingCommandReceipt BEGIN SELECT RAISE(ABORT, 'correction rollback'); END`);
+    try { expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(payload)).status).toBe(500); expect(await creation.get(order.id)).toEqual(packed); expect(await audit(order.id)).toEqual(events); expect(await prisma.pizzaProductionHistory.count()).toBe(pizzaEvents); expect(await prisma.finishingCommandReceipt.findUnique({ where: { clientCommandId: payload.clientCommandId } })).toBeNull(); expect(notifications).toEqual([]); }
+    finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_correction'); }
+  });
+});
+
+describe('atomicidade da invalidação automática', () => {
+  it('falha no evento PACKAGING_UNCONFIRMED desfaz também pizza e evento de correção', async () => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), payload = finishInput(packed, 'UNCHECK_PIZZA'), historyCount = await prisma.orderStatusHistory.count(), pizzaCount = await prisma.pizzaProductionHistory.count(); notifications.length = 0;
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_packing_audit BEFORE INSERT ON OrderStatusHistory WHEN NEW.metadata LIKE '%PACKAGING_UNCONFIRMED%' BEGIN SELECT RAISE(ABORT, 'packing audit rollback'); END`);
+    try { expect((await request(app).post(finishEndpoint(order)).set(a.headers).send(payload)).status).toBe(500); expect(await creation.get(order.id)).toEqual(packed); expect(await prisma.orderStatusHistory.count()).toBe(historyCount); expect(await prisma.pizzaProductionHistory.count()).toBe(pizzaCount); expect(await prisma.finishingCommandReceipt.findUnique({ where: { clientCommandId: payload.clientCommandId } })).toBeNull(); expect(notifications).toEqual([]); }
+    finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_packing_audit'); }
+  });
+  it.each(['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'] as const)('%s repetido retorna recibo original sem alterar timestamps ou histórico', async command => {
+    const { order, a } = await setup(), packed = await run(await checkItems(order, a), 'CONFIRM_PACKAGING', a), payload = finishInput(packed, command);
+    const first = await request(app).post(finishEndpoint(order)).set(a.headers).send(payload); expect(first.status).toBe(200);
+    const counts = [await prisma.orderStatusHistory.count(), await prisma.pizzaProductionHistory.count(), notifications.length];
+    const replay = await request(app).post(finishEndpoint(order)).set(a.headers).send(payload); expect(replay.status).toBe(200); expect(replay.body).toEqual({ ...first.body, replayed: true });
+    expect([await prisma.orderStatusHistory.count(), await prisma.pizzaProductionHistory.count(), notifications.length]).toEqual(counts); expect(await creation.get(order.id)).toEqual(first.body.order);
   });
 });

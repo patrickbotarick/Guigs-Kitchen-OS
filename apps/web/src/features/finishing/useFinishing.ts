@@ -67,7 +67,7 @@ export function useFinishing(credentials: SessionCredentials, sessionId: string)
     try {
       const result = await api.command(value.orderId, value.input, controller.signal, credentials);
       const current = result.replayed ? await api.readOrder(value.orderId, controller.signal) : result.order;
-      if (alive.current) { setOrders(reconciliation.current.confirm(current)); setNotice(value.input.command === 'RELEASE_TO_DISPATCH' ? 'Pedido liberado para despacho.' : 'Conferência confirmada e salva.'); } clear();
+      if (alive.current) { setOrders(reconciliation.current.confirm(current)); setNotice(value.input.command === 'RELEASE_TO_DISPATCH' ? 'Pedido liberado para despacho.' : ['UNCHECK_PIZZA', 'UNCHECK_EXTRA', 'UNCONFIRM_PACKAGING'].includes(value.input.command) ? 'Correção salva. Confira os itens e confirme a embalagem antes de liberar.' : 'Conferência confirmada e salva.'); } clear();
     } catch (cause) {
       if (cause instanceof AssemblyApiError && cause.status === 409) {
         clear();

@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright-core';
 import { withIsolatedApi } from './helpers/isolated-api.mjs';
 import { loginPin, operatorFixtures } from './helpers/operator-fixtures.mjs';
+import { finishingCorrectionsBrowser } from './helpers/finishing-corrections-browser.mjs';
 
 const executablePath = [process.env.BROWSER_PATH, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'].filter(Boolean).find(existsSync);
 assert.ok(executablePath, 'Edge/Chrome necessário');
@@ -76,6 +77,7 @@ await withIsolatedApi(3353, async ({ prisma, apiOrigin, restart }) => {
     for (const page of [a, b]) await page.getByText('Nenhum pedido aguardando finalização', { exact: true }).waitFor(); const final = await (await form.request.get(`${apiOrigin}/orders/v2/${order.id}`)).json(); assert.equal(final.status, 'WAITING_DISPATCH'); assert.equal(final.items.filter(item => item.kind === 'PIZZA' && item.production.state === 'FINISHED').length, 3);
     const history = await prisma.orderStatusHistory.findMany({ where: { orderId: order.id } }), events = history.filter(event => event.metadata && JSON.parse(event.metadata).event).map(event => JSON.parse(event.metadata)); assert.equal(events.filter(event => event.event === 'RELEASED_TO_DISPATCH').length, 1); assert.equal(events.filter(event => event.event === 'EXTRA_CHECKED').length, 3); assert.ok(events.every(event => event.operatorId && event.operatorSessionId && event.workstationId));
     console.info('PASS: Balcão UI → montagem UI → forno UI → finalização UI, 3 pizzas/Broto/metades + 2 tipos/3 unidades de extras, parcial, autoria, 200/409, replay após resposta perdida, embalagem/release explícitos, refresh/rede/API restart, dois tablets 1024×768 e 1280×800.');
+    await finishingCorrectionsBrowser({ form, a, b, oven, prisma, apiOrigin, webOrigin });
     const operationHeaders = await headers(oven);
     for (let index = 0; index < 30; index++) {
       const created = await form.request.post(`${apiOrigin}/orders/v2`, { data: { clientRequestId: randomUUID(), customerName: `Fila finalização ${index + 1}`, fulfillmentType: 'PICKUP', channel: 'COUNTER', pizzas: [{ size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null }], extras: [] } }); assert.equal(created.status(), 201); let value = await created.json();

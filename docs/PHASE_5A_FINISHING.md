@@ -103,3 +103,7 @@ Novos: serviço/testes API de finishing, tabela/migration de recibos, `features/
 Pendências: piloto físico de montagem → forno → finalização, política de correção humana, lista inicial de extras confirmada pela operação e desempenho/rede reais. SQLite e realtime sem outbox mantêm limites existentes; GET recupera eventos perdidos. Não é benchmark definitivo ou aceite operacional da loja. O histórico de liberação tem identidade/data necessárias para futura etapa, sem inferir despacho/entrega.
 
 Próximo ciclo: revisão/commit próprio da 5A e piloto curto. Antes da 5B, definir se o escopo é ajustes/correções da conferência ou despacho; para despacho, especificar Delivery/Retirada/Balcão, associação de entregador quando aplicável, retirada/entrega e autoria das transições, preservando WAITING_DISPATCH/CAS/idempotência/realtime. Não começar despacho sem esse contrato. 5A permanece local para revisão, sem commit adicional ou push nesta execução.
+
+## Fechamento da 5A
+
+Revisão e validações repetidas no início da 5B.1; commit `e05d45e` (`feat: add persistent order finishing workflow`). A ausência de correções descrita acima é o limite histórico da 5A: a 5B.1 acrescenta correções auditáveis antes de WAITING_DISPATCH, detalhadas em [PHASE_5B1_FINISHING_CORRECTIONS.md](PHASE_5B1_FINISHING_CORRECTIONS.md).

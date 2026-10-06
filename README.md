@@ -1,4 +1,6 @@
-# Guig's Kitchen — Balcão, montagem e forno
+# Guig's Kitchen — Balcão, montagem, forno e finalização
+
+**Etapa atual: Fase 5B.1 — correções da Finalização concluídas tecnicamente, disponíveis localmente para revisão/commit.** 5A fechada em `e05d45e`. WAITING_DISPATCH encerra a Finalização; o próximo módulo é Despacho (5B.2), ainda não implementado. Piloto físico permanece pendente. [Regras e validações](docs/PHASE_5B1_FINISHING_CORRECTIONS.md).
 
 **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE.** 4B fechada no commit `a8534d1`; piloto físico permanece validação operacional pendente.
 
@@ -225,3 +227,7 @@ Supervisor configurado administrativamente com `npm run operator:configure -- --
 Rota `/kitchen/oven`, fila compartilhada por pizza, ordenação pela montagem mais antiga, área IN_OVEN e indicadores orientativos de tempo. ENTER_OVEN grava entrada/previsão, REMOVE_FROM_OVEN grava BAKED, mantendo histórico, agregação e recibo na mesma transação. Operador do forno exige presença válida; a autoria original da montagem é preservada. Quem atuar exclusivamente no forno pode suspender o recebimento de novas pizzas de montagem pela própria tela.
 
 `npm run test:oven` valida fila/timer/reconciliação. `npm run test:oven:browser` inicia Vite 5183/API 3352/SQLite descartáveis, sem usar banco da loja: balcão → montagem → forno, dois tablets, Broto/meio a meio, refresh/reabertura, relógio deslocado, resposta perdida/replay, 30 pizzas, disputa 200/409, rede e reinício da API. Lint/typecheck/build, 182 testes API, 34 montagem e 16 forno. Não há nova migration ou alteração do lockfile. [Documentação da 4A](docs/PHASE_4A_OVEN.md).
+
+## Fase 5B.1 — correções da Finalização
+
+5A fechada em `e05d45e`. Corrigir pizza, reduzir extras conferidos e desfazer embalagem exige confirmação simples, preserva autoria/histórico e aceita motivo opcional. Correção de item invalida embalagem automaticamente na mesma transação, com CAS/idempotência/realtime. WAITING_DISPATCH é o fechamento e rejeita novas correções normais. Sem nova migration. [Regras, testes, limites e próxima etapa](docs/PHASE_5B1_FINISHING_CORRECTIONS.md). Próximo ciclo: revisão/commit 5B.1, piloto físico e contrato de Despacho (5B.2).
