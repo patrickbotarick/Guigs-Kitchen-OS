@@ -1,5 +1,11 @@
 # Guig's Kitchen — Balcão, montagem, forno, finalização e despacho
 
+**Fluxo operacional vigente (06/10/2026):** simulador → Montagem → Forno e Finalização → rotas → conferência no Balcão → despacho/retirada. A Saipos permanece o sistema principal de pedidos; não há integração Saipos nesta entrega. A revisão do fluxo anterior está documentada em [KITCHEN_OPERATION_FLOW_V2.md](docs/KITCHEN_OPERATION_FLOW_V2.md) e não inicia a Fase 6.
+
+Novos pedidos usam `operationalFlowVersion=2`: **Enviar pro forno** encerra montagem e inicia `IN_OVEN` na mesma transação, sem segundo clique. A estação oficial `/kitchen/finishing` reúne retirada do forno, acabamento individual e organização de rotas. Extras, conferência física das pizzas e embalagem pertencem a `/counter/dispatch`. `/kitchen` exibe apenas Fila, Em montagem, No forno e Finalizados, com cards por pizza e leitura compartilhada. `/kitchen/oven` e `/kitchen/dispatch` redirecionam para as estações oficiais.
+
+`FINISHED` significa produção da pizza concluída; não significa conferência, despacho ou entrega. Rotas relacionais `OPEN → CLOSED → DISPATCHED` aceitam composição parcial, mas a saída exige todos os itens de cada pedido na mesma rota, pizzas/extras conferidos e embalagem confirmada. Reabertura/edição invalida conferência e embalagem, preservando produção e auditoria. `OVEN_CAPACITY` é indicativa no fluxo novo. Pedidos históricos mantêm `operationalFlowVersion=1`, `WAITING_OVEN`, comandos e timestamps originais; não há conversão automática. As descrições de fases abaixo registram as entregas históricas, cujas telas/regras foram posteriormente revisadas pelo fluxo vigente.
+
 Referência visual oficial: `/kitchen/assembly`. Forno, Finalização, Despacho e Balcão seguem os [padrões de UI](docs/UI_VISUAL_STANDARDIZATION.md); `npm run test:ui:browser` valida as telas em tablets com dados isolados. Esta padronização visual não inicia a Fase 6 funcional.
 
 `/orders/new` é o [Simulador oficial de entrada de pedidos](docs/ORDER_ENTRY_SIMULATOR.md): cria pedidos v2 persistidos para homologar o futuro payload Saipos e enviá-los ao fluxo real. `/kitchen/assembly/dev` permanece separado como simulador interno da estação.
@@ -39,8 +45,9 @@ Com ambiente preparado, também é possível executar `npm run dev`. Na primeira
 | Novo pedido | http://localhost:5173/orders/new |
 | Cozinha | http://localhost:5173/kitchen |
 | Fila de Montagem (persistida, identificação por PIN) | http://localhost:5173/kitchen/assembly |
-| Forno (fila compartilhada, identificação por PIN) | http://localhost:5173/kitchen/oven |
-| Finalização (por pedido, identificação por PIN) | http://localhost:5173/kitchen/finishing |
+| Forno e Finalização (por pizza, identificação por PIN) | http://localhost:5173/kitchen/finishing |
+| Balcão · Despacho e Rotas (identificação por PIN) | http://localhost:5173/counter/dispatch |
+| Links antigos (redirect) | `/kitchen/oven` → `/kitchen/finishing`; `/kitchen/dispatch` → `/counter/dispatch` |
 | Simulador da montagem (somente desenvolvimento) | http://localhost:5173/kitchen/assembly/dev |
 | Saúde da API | http://localhost:3333/health |
 | Pedidos ativos | `GET http://localhost:3333/orders` |
@@ -57,9 +64,9 @@ Com ambiente preparado, também é possível executar `npm run dev`. Na primeira
 2. Em outra aba, abra `/orders/new`, informe cliente e tipo, e adicione uma ou mais pizzas com modificadores.
 3. Crie o pedido e observe o número de confirmação.
 4. Confira se apareceu em `/kitchen` sem atualizar a página.
-5. Use o botão do card para iniciar produção e confira o novo estado sem F5.
-6. Abra `/kitchen` em outra aba, avance para o forno e confirme que ambas atualizam.
-7. Abra **Ver histórico** e confira criação e transições.
+5. Identifique-se na Montagem, assuma a pizza quando necessário e inicie a montagem. Enviar pro forno inicia o timer sem outra ação.
+6. Em `/kitchen/finishing`, retire do forno, finalize cada pizza e organize/feche uma rota. Observe `/kitchen` em outra aba.
+7. Em `/counter/dispatch`, confira pizzas, extras e embalagem; libere cada pedido e registre a saída da rota. Confirme entrega ou retirada. Histórico permanece persistido nas APIs de pedido/pizza/rota.
 8. Tente `WAITING_PRODUCTION → DELIVERED` pela API; a resposta deve ser HTTP 409.
 9. Pare e reinicie o sistema; status e histórico devem permanecer.
 

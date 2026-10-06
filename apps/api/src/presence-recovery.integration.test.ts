@@ -19,7 +19,7 @@ import { presencePolicy } from './presence-policy.js';
 
 const name = `test-presence-recovery-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma);
+const creation = new StructuredOrderService(prisma, undefined, 1), commands = new PizzaCommandService(prisma);
 const operators: string[] = [], notifications: KitchenNotification[] = [], changes: string[] = [];
 let sessions: OperatorSessionService, recovery: SupervisorRecoveryService, app: ReturnType<typeof createApp>, sockets: Server | undefined;
 async function login(index = 0, online = true) {

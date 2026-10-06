@@ -86,8 +86,8 @@ await withIsolatedApi(3348, async ({ prisma, apiOrigin }) => {
     await pageA.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
     const saved = await (await a.request.get(`${apiOrigin}/orders/v2/${created.id}`)).json();
     assert.equal(saved.status, 'OVEN'); assert.equal(saved.version, 4);
-    assert.equal(saved.items[0].production.state, 'WAITING_OVEN'); assert.equal(saved.items[0].production.version, 4);
-    assert.ok(saved.items[0].production.assemblyCompletedAt); assert.equal(saved.items[0].production.ovenStartedAt, null);
+    assert.equal(saved.items[0].production.state, 'IN_OVEN'); assert.equal(saved.items[0].production.version, 4);
+    assert.ok(saved.items[0].production.assemblyCompletedAt); assert.equal(saved.items[0].production.ovenStartedAt, saved.items[0].production.assemblyCompletedAt);
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId }, orderBy: { itemVersion: 'asc' } });
     assert.deepEqual(history.map(event => event.eventType), ['CREATED', 'CLAIMED', 'START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN']);
     assert.equal(await prisma.pizzaCommandReceipt.count(), 4);

@@ -24,7 +24,7 @@ export class PizzaCommandService {
     const sessions = new OperatorSessionService(this.prisma);
     const actor = await sessions.validate(credentials);
     const input = pizzaCommandSchema.parse(payload);
-    const ovenCommand = input.command === 'ENTER_OVEN' || input.command === 'REMOVE_FROM_OVEN';
+    const ovenCommand = input.command === 'ENTER_OVEN' || input.command === 'REMOVE_FROM_OVEN' || input.command === 'FINISH_PIZZA';
     if (ovenCommand && actor.view.presenceStatus !== 'ONLINE') throw new PizzaCommandConflictError('Confirme sua presença operacional antes de executar comandos de forno.');
     const { clientCommandId, ...intent } = input;
     const hash = createHash('sha256').update(JSON.stringify({ orderId, pizzaId, ...intent, operatorSessionId: actor.sessionId, operatorId: actor.operatorId, workstationId: actor.workstationId })).digest('hex');
@@ -46,7 +46,9 @@ export class PizzaCommandService {
           if (!order || order.schemaVersion !== 2 || !pizza || pizza.orderId !== orderId) throw new PizzaCommandNotFoundError('Pizza não encontrada neste pedido v2.');
           const assignmentCommand = input.command === 'CLAIM_PIZZA' || input.command === 'RELEASE_PIZZA';
           const allTransitions = { ...assemblyCommandTransitions, ...ovenCommandTransitions };
-          const transition = assignmentCommand ? { from: pizza.state, to: pizza.state } : allTransitions[input.command as keyof typeof allTransitions];
+          const directOven = order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN';
+          const transition = assignmentCommand ? { from: pizza.state, to: pizza.state } : directOven ? { from: 'ASSEMBLING' as const, to: 'IN_OVEN' as const } : input.command === 'FINISH_PIZZA' && pizza.state === 'FINISHING' ? { from: 'FINISHING' as const, to: 'FINISHED' as const } : allTransitions[input.command as keyof typeof allTransitions];
+          if (directOven && currentActor.view.presenceStatus !== 'ONLINE') throw new PizzaCommandConflictError('Confirme presença para concluir montagem e iniciar forno.');
           if (isLogisticsOrderStatus(order.status) || order.status === 'CANCELLED' || pizza.state !== input.expectedState || pizza.version !== input.expectedVersion || pizza.state !== transition.from || (!assignmentCommand && !canTransitionPizza(pizza.state, transition.to))) {
             throw new PizzaCommandConflictError('Esta pizza foi atualizada ou o comando não é permitido no estado atual. Recarregue os dados.');
           }
@@ -64,7 +66,7 @@ export class PizzaCommandService {
             return result;
           }
           const oven = ovenConfiguration();
-          if (input.command === 'ENTER_OVEN' && oven.ovenCapacity !== null) {
+          if (order.operationalFlowVersion === 1 && input.command === 'ENTER_OVEN' && oven.ovenCapacity !== null) {
             // Count and CAS write share the SQLite transaction. A competing writer
             // cannot commit against this stale snapshot: retry rechecks capacity.
             const occupied = await tx.pizzaItem.count({ where: { state: 'IN_OVEN' } });
@@ -80,16 +82,18 @@ export class PizzaCommandService {
             ...(input.command === 'START_ASSEMBLY' ? { assemblyStartedAt: now } : {}),
             ...(assignmentCommand || ovenCommand ? {} : input.command === 'PAUSE_ASSEMBLY' ? { pausedAt: now } : { pausedAt: null }),
             ...(input.command === 'SEND_TO_OVEN' ? { assemblyCompletedAt: now } : {}),
-            ...(input.command === 'ENTER_OVEN' ? { ovenStartedAt: now, ovenExpectedEndAt: new Date(now.getTime() + (this.ovenMinutes ?? oven.defaultOvenMinutes) * 60000) } : {}),
+            ...(input.command === 'ENTER_OVEN' || directOven ? { ovenStartedAt: now, ovenExpectedEndAt: new Date(now.getTime() + (this.ovenMinutes ?? oven.defaultOvenMinutes) * 60000) } : {}),
             ...(input.command === 'REMOVE_FROM_OVEN' ? { bakedAt: now } : {}),
+            ...(input.command === 'FINISH_PIZZA' ? { finishingStartedAt: pizza.finishingStartedAt ?? pizza.bakedAt ?? now, finishedAt: now } : {}),
+            ...(directOven ? { releasedAt: now } : {}),
           } });
           if (changed.count !== 1) throw new PizzaCommandConflictError('Esta pizza foi atualizada em outro dispositivo.');
           if (claiming && !assignmentCommand) await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: 'CLAIMED', fromState: pizza.state, toState: pizza.state, changedAt: now,
             actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId,
             commandId: `${clientCommandId}:claim`, itemVersion: pizza.version + 1, reason: 'Reserva atômica ao iniciar montagem' } });
-          await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: input.command === 'CLAIM_PIZZA' ? 'CLAIMED' : releasing ? 'RELEASED' : input.command, fromState: pizza.state, toState: transition.to, changedAt: now,
+          await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: input.command === 'CLAIM_PIZZA' ? 'CLAIMED' : releasing ? 'RELEASED' : input.command === 'FINISH_PIZZA' ? 'PIZZA_FINISHED' : input.command, fromState: pizza.state, toState: transition.to, changedAt: now,
             actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId,
-            commandId: clientCommandId, itemVersion: pizza.version + 1, reason: ovenCommand ? 'Comando operacional de forno' : 'Comando de montagem via Assembly' } });
+            commandId: clientCommandId, itemVersion: pizza.version + 1, reason: ovenCommand ? 'Comando operacional de forno/acabamento' : 'Comando de montagem via Assembly', ...(directOven ? { metadata: { assemblyCompleted: true, ovenStarted: true, capacityPolicy: 'INDICATOR' } } : {}) } });
           const pizzas = await tx.pizzaItem.findMany({ where: { orderId }, select: { state: true } });
           const extras = await tx.extraItem.findMany({ where: { orderId }, select: { state: true, quantity: true, checkedQuantity: true } });
           const status = deriveOrderProductionState({ pizzas: pizzas.map(pizza => pizza.state), extras, packingConfirmed: Boolean(order.packingFinishedAt && order.packingFinishedBy) });

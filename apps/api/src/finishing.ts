@@ -10,11 +10,11 @@ export function finishingNotifications(result: FinishingCommandResult): KitchenN
 }
 export class FinishingService {
   constructor(private readonly prisma: PrismaClient) {}
-  async execute(orderId: string, payload: FinishingCommandInput, credentials?: SessionCredentials): Promise<FinishingCommandResult> {
+  async execute(orderId: string, payload: FinishingCommandInput, credentials?: SessionCredentials, context: 'KITCHEN' | 'COUNTER' = 'KITCHEN'): Promise<FinishingCommandResult> {
     const sessions = new OperatorSessionService(this.prisma), actor = await sessions.validate(credentials), input = finishingCommandSchema.parse(payload);
     if (actor.view.presenceStatus !== 'ONLINE') throw new PizzaCommandConflictError('Confirme sua presença antes de operar a finalização.');
     const { clientCommandId, ...intent } = input;
-    const hash = createHash('sha256').update(JSON.stringify({ orderId, ...intent, sessionId: actor.sessionId, operatorId: actor.operatorId, workstationId: actor.workstationId })).digest('hex');
+    const hash = createHash('sha256').update(JSON.stringify({ orderId, ...intent, sessionId: actor.sessionId, operatorId: actor.operatorId, workstationId: actor.workstationId, ...(context === 'COUNTER' ? { context } : {}) })).digest('hex');
     const replay = (saved: { payloadHash: string; responseSnapshot: Prisma.JsonValue }) => {
       if (saved.payloadHash !== hash) throw new PizzaCommandConflictError('Identificador de comando já utilizado com outro conteúdo.');
       return finishingCommandResultSchema.parse({ ...(saved.responseSnapshot as object), replayed: true });
@@ -30,13 +30,31 @@ export class FinishingService {
           if (previous) return replay(previous);
           const order = await tx.order.findUnique({ where: { id: orderId }, include: { pizzaItems: true, extraItems: true } });
           if (!order || order.schemaVersion !== 2) throw new PizzaCommandNotFoundError('Pedido v2 não encontrado.');
-          if (order.version !== input.expectedVersion || !['IN_PRODUCTION', 'OVEN', 'FINISHING'].includes(order.status)) throw new PizzaCommandConflictError('Este pedido foi atualizado ou não aceita conferência. Recarregue os dados.');
+          const counter = context === 'COUNTER' && order.operationalFlowVersion === 2;
+          if (order.operationalFlowVersion === 2 && !counter) throw new PizzaCommandConflictError('Conferência, extras e embalagem pertencem ao Balcão. Finalize a produção por pizza.');
+          if (order.version !== input.expectedVersion || !(counter ? ['IN_PRODUCTION', 'OVEN', 'FINISHING', 'WAITING_DISPATCH'] : ['IN_PRODUCTION', 'OVEN', 'FINISHING']).includes(order.status)) throw new PizzaCommandConflictError('Este pedido foi atualizado ou não aceita conferência. Recarregue os dados.');
+          if (counter && input.command === 'START_FINISHING') throw new PizzaCommandConflictError('Acabamento pertence à estação Forno e Finalização.');
+          if (counter) {
+            const links = await tx.dispatchRouteItem.findMany({ where: { pizza: { orderId } }, include: { route: true } });
+            if (!links.some(link => link.route.status === 'CLOSED')) throw new PizzaCommandConflictError('O Balcão recebe apenas rotas fechadas.');
+            if (input.command === 'CHECK_PIZZA' && !links.some(link => link.pizzaId === input.pizzaId && link.route.status === 'CLOSED')) throw new PizzaCommandConflictError('Esta pizza ainda não está em uma rota fechada.');
+          }
           if (!order.pizzaItems.some(pizza => ['BAKED', 'FINISHING', 'FINISHED'].includes(pizza.state))) throw new PizzaCommandConflictError('Ainda não há pizza disponível para finalização.');
           const now = new Date();
           let event = '', metadata: Record<string, unknown> = { command: input.command, clientCommandId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId };
           const correction = input.command === 'UNCHECK_PIZZA' || input.command === 'UNCHECK_EXTRA' || input.command === 'UNCONFIRM_PACKAGING';
           if (correction) metadata.reason = input.reason || null;
-          if (input.command === 'UNCHECK_PIZZA') {
+          if (counter && (input.command === 'CHECK_PIZZA' || input.command === 'UNCHECK_PIZZA')) {
+            const pizza = order.pizzaItems.find(pizza => pizza.id === input.pizzaId);
+            if (!pizza) throw new PizzaCommandNotFoundError('Pizza não pertence a este pedido.');
+            const checking = input.command === 'CHECK_PIZZA';
+            if (pizza.state !== 'FINISHED' || pizza.version !== input.expectedItemVersion || Boolean(pizza.counterCheckedAt) === checking) throw new PizzaCommandConflictError('Pizza atualizada ou conferência incompatível.');
+            const changed = await tx.pizzaItem.updateMany({ where: { id: pizza.id, version: pizza.version, state: 'FINISHED' }, data: { counterCheckedAt: checking ? now : null, counterCheckedBy: checking ? actor.operatorId : null, version: { increment: 1 } } });
+            if (changed.count !== 1) throw new PizzaCommandConflictError('Pizza atualizada por outro terminal.');
+            event = checking ? 'COUNTER_PIZZA_CHECKED' : 'COUNTER_PIZZA_UNCHECKED';
+            await tx.pizzaProductionHistory.create({ data: { pizzaId: pizza.id, eventType: event, fromState: 'FINISHED', toState: 'FINISHED', changedAt: now, actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId, commandId: clientCommandId, itemVersion: pizza.version + 1, reason: 'Conferência física no Balcão' } });
+            metadata = { ...metadata, pizzaId: pizza.id };
+          } else if (input.command === 'UNCHECK_PIZZA') {
             const pizza = order.pizzaItems.find(pizza => pizza.id === input.pizzaId);
             if (!pizza) throw new PizzaCommandNotFoundError('Pizza não pertence a este pedido.');
             if (pizza.version !== input.expectedItemVersion || pizza.state !== 'FINISHED') throw new PizzaCommandConflictError('Pizza atualizada ou ainda não conferida.');
@@ -73,7 +91,11 @@ export class FinishingService {
             if (changed.count !== 1) throw new PizzaCommandConflictError('Extra atualizado por outro terminal.');
             event = 'EXTRA_CHECKED'; metadata = { ...metadata, extraId: extra.id, checkedQuantity: input.checkedQuantity, previousCheckedQuantity: extra.checkedQuantity, itemVersion: extra.version + 1 };
           } else {
-            const pizzasReady = order.pizzaItems.filter(pizza => pizza.state !== 'CANCELLED').every(pizza => pizza.state === 'FINISHED');
+            const pizzasReady = order.pizzaItems.filter(pizza => pizza.state !== 'CANCELLED').every(pizza => pizza.state === 'FINISHED' && (!counter || Boolean(pizza.counterCheckedAt)));
+            if (counter) {
+              const links = await tx.dispatchRouteItem.findMany({ where: { pizza: { orderId, state: { not: 'CANCELLED' } } }, include: { route: true } });
+              if (links.length !== order.pizzaItems.filter(pizza => pizza.state !== 'CANCELLED').length || new Set(links.map(link => link.routeId)).size !== 1 || links.some(link => link.route.status !== 'CLOSED')) throw new PizzaCommandConflictError('Todas as pizzas do pedido precisam estar na mesma rota fechada.');
+            }
             const extrasReady = order.extraItems.filter(extra => extra.state !== 'CANCELLED').every(extra => extra.state === 'FINISHED' && extra.checkedQuantity === extra.quantity);
             if (!pizzasReady || !extrasReady) throw new PizzaCommandConflictError('Confira todas as pizzas e todas as unidades dos extras antes de confirmar embalagem ou liberar.');
             if (input.command === 'CONFIRM_PACKAGING') {

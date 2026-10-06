@@ -99,7 +99,7 @@ try {
     await page.getByRole('button', { name: /Enviar pro forno/ }).click();
   }
   await page.getByText('Montagens concluídas (3 / 3)', { exact: true }).waitFor();
-  assert.equal(await page.locator('.ka-timeline [aria-current="step"]').innerText(), 'Fila do forno');
+  assert.equal(await page.locator('.ka-timeline [aria-current="step"]').innerText(), 'Forno');
   assert.equal(await page.locator('.ka-pizza-status').getByText('Aguardando forno', { exact: true }).count(), 3);
   await checkLayout(1024, 768, 'assembly-complete');
   await page.getByRole('button', { name: 'Concluir montagem', exact: true }).click();
@@ -226,10 +226,10 @@ try {
   await reception.route('**:3333/health', route => route.fulfill({ json: { status: 'ok' } }));
   await reception.goto(origin);
   await reception.getByRole('heading', { name: /Pedidos claros/ }).waitFor();
-  await reception.getByRole('link', { name: 'Novo pedido', exact: true }).click();
-  await reception.getByRole('heading', { name: 'Novo pedido de teste', exact: true }).waitFor();
-  await reception.getByRole('link', { name: 'Cozinha', exact: true }).click();
-  await reception.getByRole('heading', { name: 'Fila da cozinha', exact: true }).waitFor();
+  await reception.getByRole('link', { name: 'Simulador', exact: true }).click();
+  await reception.locator('.pizza-form').waitFor();
+  await reception.getByRole('link', { name: 'Visão geral', exact: true }).click();
+  await reception.getByRole('heading', { name: 'Cozinha', exact: true }).waitFor();
   await reception.getByRole('link', { name: 'Montagem', exact: true }).click();
   await reception.getByRole('heading', { name: 'Identifique-se', exact: true }).waitFor();
   await reception.goto(`${origin}/kitchen/assembly?source=demo`);

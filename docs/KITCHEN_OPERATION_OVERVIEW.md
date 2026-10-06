@@ -1,5 +1,7 @@
 # Central Operacional da Cozinha
 
+**Documento histórico, substituído em 06/10/2026.** A interface de supervisão abaixo foi retirada. `/kitchen` agora é um quadro de quatro colunas por pizza; o contrato vigente e as responsabilidades estão em [KITCHEN_OPERATION_FLOW_V2.md](KITCHEN_OPERATION_FLOW_V2.md). Não há novos dashboards ou filtros administrativos nesta tela.
+
 `/kitchen` é a visão de supervisão da operação. Ela lê os pedidos estruturados de `GET /orders/v2`, a presença operacional de `GET /operators/overview` e os eventos Socket.IO já usados pelos módulos. A cada evento e a cada 30 segundos há nova leitura no servidor; reconexão e atualização manual preservam a mesma fonte persistida.
 
 ## Escopo

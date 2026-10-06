@@ -7,7 +7,7 @@ import { toOrderView } from './orders.js';
 export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, id: string): Promise<CompatibleOrder | null> {
   const order = await prisma.order.findUnique({ where: { id }, include: {
     items: { include: { modifiers: true } },
-    pizzaItems: { include: { assignedOperator: true, history: { where: { eventType: 'ENTER_OVEN' }, orderBy: { itemVersion: 'desc' }, take: 1, include: { operator: true } }, halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
+    pizzaItems: { include: { assignedOperator: true, history: { where: { eventType: { in: ['ENTER_OVEN', 'SEND_TO_OVEN'] } }, orderBy: { itemVersion: 'desc' }, take: 1, include: { operator: true } }, halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
   } });
   if (!order) return null;
   if (order.schemaVersion === 1) return readOrderData(toOrderView(order));
@@ -16,7 +16,7 @@ export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, i
   return readOrderData({ schemaVersion: 2, id: order.id, number: order.number, customerName: order.customerName, customerPhone: order.customerPhone,
     fulfillmentType: order.type, channel: order.structuredChannel, notes: order.notes,
     receivedAt: order.receivedAt.toISOString(), createdAt: order.createdAt.toISOString(), updatedAt: order.updatedAt.toISOString(),
-    version: order.version, status: order.status, packingFinishedAt: iso(order.packingFinishedAt), packingFinishedBy: order.packingFinishedBy,
+    operationalFlowVersion: order.operationalFlowVersion, version: order.version, status: order.status, packingFinishedAt: iso(order.packingFinishedAt), packingFinishedBy: order.packingFinishedBy,
     dispatch: { dispatchReadyAt: iso(order.dispatchReadyAt), waitingDriverAt: iso(order.waitingDriverAt), dispatchedAt: iso(order.dispatchedAt), deliveredAt: iso(order.deliveredAt), pickupReadyAt: iso(order.pickupReadyAt), pickedUpAt: iso(order.pickedUpAt), completedAt: iso(order.completedAt) },
     items: [...order.pizzaItems.map(pizza => {
       const snapshot = recipeSnapshotSchema.parse(pizza.recipeSnapshot);
@@ -25,7 +25,7 @@ export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, i
       if (pizza.halves[0]?.position !== 1 || (pizza.composition === 'WHOLE' ? pizza.halves.length !== 1 : pizza.halves.length !== 2 || pizza.halves[1]?.position !== 2)) throw new Error('Metades persistidas incompatíveis.');
       return { id: pizza.id, orderId: order.id, position: pizza.position, notes: pizza.notes, kind: 'PIZZA',
         assignment: pizza.assignedOperatorId ? { operatorId: pizza.assignedOperatorId, operatorName: pizza.assignedOperator?.name, workstationId: pizza.assignedWorkstationId, sessionId: pizza.assignedSessionId, assignedAt: iso(pizza.assignedAt) } : null,
-        releasedAt: iso(pizza.releasedAt),
+        releasedAt: iso(pizza.releasedAt), counterCheckedAt: iso(pizza.counterCheckedAt), counterCheckedBy: pizza.counterCheckedBy,
         recipe: { size: pizza.size, composition: pizza.composition, firstHalf: halves[0], ...(pizza.composition === 'HALF_HALF' ? { secondHalf: halves[1] } : {}), crustId: pizza.crustId },
         snapshot,
         production: { state: pizza.state, version: pizza.version, queuedAt: pizza.queuedAt.toISOString(),

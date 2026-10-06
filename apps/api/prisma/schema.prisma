@@ -75,6 +75,7 @@ model Order {
   statusHistory OrderStatusHistory[]
   // Existing rows stay v1. No automatic conversion or inferred item history.
   schemaVersion Int @default(1)
+  operationalFlowVersion Int @default(1)
   structuredChannel StructuredOrderChannel?
   version Int @default(0)
   packingFinishedBy String?
@@ -162,6 +163,9 @@ enum ExtraProductionState {
 // Catalog IDs reference the structured catalog, not the unrelated legacy seed.
 // Catalog membership/revisions and snapshots must be checked by the future creation service.
 model PizzaItem {
+  counterCheckedAt DateTime?
+  counterCheckedBy String?
+  routeItem DispatchRouteItem?
   id String @id @default(cuid())
   orderId String
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
@@ -280,6 +284,58 @@ model PizzaCommandReceipt {
   createdAt DateTime @default(now())
   operatorSessionId String?
   operatorSession OperatorSession? @relation(fields: [operatorSessionId], references: [id], onDelete: Restrict)
+}
+
+model DispatchRouteCounter {
+  id Int @id
+  value Int
+}
+
+model DispatchRoute {
+  id String @id @default(cuid())
+  routeNumber Int @unique
+  status String @default("OPEN")
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  closedAt DateTime?
+  reopenedAt DateTime?
+  dispatchedAt DateTime?
+  createdByOperatorId String
+  workstationId String
+  sessionId String
+  items DispatchRouteItem[]
+  history DispatchRouteHistory[]
+}
+
+model DispatchRouteItem {
+  pizzaId String @id
+  pizza PizzaItem @relation(fields: [pizzaId], references: [id], onDelete: Restrict)
+  routeId String
+  route DispatchRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  addedAt DateTime @default(now())
+  @@index([routeId])
+}
+
+model DispatchRouteHistory {
+  id String @id @default(cuid())
+  routeId String
+  route DispatchRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  eventType String
+  changedAt DateTime @default(now())
+  operatorId String
+  workstationId String
+  sessionId String
+  commandId String
+  version Int
+  metadata Json
+  @@index([routeId, changedAt])
+}
+
+model DispatchRouteReceipt {
+  clientCommandId String @id
+  payloadHash String
+  responseSnapshot Json
+  createdAt DateTime @default(now())
 }
 
 model Operator {

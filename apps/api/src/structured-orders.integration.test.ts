@@ -13,7 +13,7 @@ import { IdempotencyConflictError, StructuredOrderService } from './structured-o
 const name = `test-structured-${randomUUID()}.db`;
 const path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const service = new StructuredOrderService(prisma);
+const service = new StructuredOrderService(prisma, undefined, 1);
 const legacy = new OrderService(prisma);
 const publish = vi.fn();
 const app = createApp(legacy, publish, 'http://localhost:5173', service);

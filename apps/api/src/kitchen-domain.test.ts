@@ -9,7 +9,7 @@ describe('contrato compartilhado Kitchen v2', () => {
     for (const state of ['OVEN', 'IN_PRODUCTION', 'DONE', 'WAITING']) expect(pizzaProductionStateSchema.safeParse(state).success).toBe(false);
   });
   it('valida a matriz de transições sem saltos, repetições ou reabertura', () => {
-    const pairs = new Set(['WAITING_ASSEMBLY:ASSEMBLING', 'ASSEMBLING:ASSEMBLY_PAUSED', 'ASSEMBLY_PAUSED:ASSEMBLING', 'ASSEMBLING:WAITING_OVEN', 'WAITING_OVEN:IN_OVEN', 'IN_OVEN:BAKED', 'BAKED:FINISHING', 'FINISHING:FINISHED']);
+    const pairs = new Set(['WAITING_ASSEMBLY:ASSEMBLING', 'ASSEMBLING:ASSEMBLY_PAUSED', 'ASSEMBLY_PAUSED:ASSEMBLING', 'ASSEMBLING:WAITING_OVEN', 'ASSEMBLING:IN_OVEN', 'WAITING_OVEN:IN_OVEN', 'IN_OVEN:BAKED', 'BAKED:FINISHING', 'BAKED:FINISHED', 'FINISHING:FINISHED']);
     for (const from of pizzaProductionStates) for (const to of pizzaProductionStates) {
       expect(canTransitionPizza(from, to)).toBe(pairs.has(`${from}:${to}`) || (to === 'CANCELLED' && from !== 'FINISHED' && from !== 'CANCELLED'));
     }

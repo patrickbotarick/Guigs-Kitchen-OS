@@ -13,7 +13,7 @@ import { OrderService } from './orders.js';
 
 const name = `test-auto-assignment-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const creation = new StructuredOrderService(prisma), sessions = new OperatorSessionService(prisma), commands = new PizzaCommandService(prisma);
+const creation = new StructuredOrderService(prisma, undefined, 1), sessions = new OperatorSessionService(prisma), commands = new PizzaCommandService(prisma);
 const notifications: KitchenNotification[] = [], publish = vi.fn();
 const app = createApp(new OrderService(prisma), publish, 'http://localhost:5173', creation, commands, event => notifications.push(event), sessions);
 const operatorIds: string[] = [];
@@ -94,7 +94,7 @@ describe('distribuição automática por pizza', () => {
   });
   it('desempate usa sorteio entre todos os empatados, sem favorecer a ordem do banco', async () => {
     await login(0); await login(1); await login(2);
-    const pick = vi.fn((count: number) => count - 1), service = new StructuredOrderService(prisma, pick);
+    const pick = vi.fn((count: number) => count - 1), service = new StructuredOrderService(prisma, pick, 1);
     const { order } = await service.create(payload(3)); expect(pick.mock.calls.map(call => call[0])).toEqual([3, 2]);
     const events = await prisma.pizzaProductionHistory.findMany({ where: { pizza: { orderId: order.id }, eventType: 'AUTO_ASSIGNED' }, orderBy: { pizza: { position: 'asc' } } });
     const first = events[0].metadata as { tiedOperatorIds: string[] }; expect(events[0].operatorId).toBe(first.tiedOperatorIds[2]);
@@ -136,7 +136,7 @@ describe('distribuição automática por pizza', () => {
   });
   it('clientes Prisma independentes compartilham a serialização e a carga do SQLite', async () => {
     for (let index = 0; index < 3; index++) await login(index);
-    const otherClient = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } }), other = new StructuredOrderService(otherClient);
+    const otherClient = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } }), other = new StructuredOrderService(otherClient, undefined, 1);
     try {
       await Promise.all(Array.from({ length: 6 }, (_, index) => (index % 2 ? other : creation).create(payload(3))));
       expect((await load()).map(group => group._count._all)).toEqual([6, 6, 6]); expect(await prisma.pizzaItem.count()).toBe(18);

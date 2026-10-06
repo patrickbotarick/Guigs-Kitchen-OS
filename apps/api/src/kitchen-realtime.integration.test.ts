@@ -16,7 +16,7 @@ import { configureOperator, OperatorSessionService } from './operator-sessions.j
 
 const name = `test-realtime-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const app = createApp(new OrderService(prisma), (event, order) => sockets.emit(event, order), 'http://localhost:5173', new StructuredOrderService(prisma), new PizzaCommandService(prisma), event => sockets.emit(event.type, event.payload));
+const app = createApp(new OrderService(prisma), (event, order) => sockets.emit(event, order), 'http://localhost:5173', new StructuredOrderService(prisma, undefined, 1), new PizzaCommandService(prisma), event => sockets.emit(event.type, event.payload));
 const server = createServer(app), sockets = new Server(server);
 const clients: Socket[] = [];
 let origin: string;

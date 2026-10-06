@@ -11,7 +11,7 @@ assert.ok(local, 'Esta ferramenta exige um SQLite local na pasta Prisma.');
 const databasePath = resolve('apps/api/prisma', local[1]);
 const current = new DatabaseSync(databasePath, { readOnly: true });
 const args = process.argv.slice(2), phase = args.includes('--phase') ? args[args.indexOf('--phase') + 1] : 'phase3d2b';
-assert.ok(['phase3d2b', 'phase3d2c', 'phase3d2d', 'phase5a', 'phase5b2'].includes(phase), 'Fase de backup inválida.');
+assert.ok(['phase3d2b', 'phase3d2c', 'phase3d2d', 'phase5a', 'phase5b2', 'flowv2'].includes(phase), 'Fase de backup inválida.');
 try {
   assert.deepEqual(current.prepare('PRAGMA integrity_check').all().map(row => row.integrity_check), ['ok']);
   assert.equal(current.prepare('PRAGMA foreign_key_check').all().length, 0);

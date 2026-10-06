@@ -15,7 +15,7 @@ import type { FinishingCommandInput } from '@guigs/shared';
 
 const name = `test-finishing-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma), notifications: KitchenNotification[] = [];
+const creation = new StructuredOrderService(prisma, undefined, 1), commands = new PizzaCommandService(prisma), notifications: KitchenNotification[] = [];
 
 const originalCapacity = process.env.OVEN_CAPACITY, originalMinutes = process.env.OVEN_DEFAULT_MINUTES;
 afterEach(() => {

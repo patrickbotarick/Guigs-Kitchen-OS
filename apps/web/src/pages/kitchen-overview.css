@@ -1,1 +1,22 @@
-.kitchen-overview{max-width:1400px}.ko-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.ko-head h1{margin:.2rem 0}.ko-head-actions,.ko-links,.ko-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ko-links{margin:18px 0}.ko-connection,.ko-presence{border-radius:999px;padding:5px 10px;font-size:.78rem;font-weight:700;background:#edf1f5;color:#52606d}.ko-online{background:#dcf7e7;color:#137a43}.ko-stale{background:#fff0c7;color:#875c00}.ko-offline{background:#fde3e1;color:#a12b25}.ko-metrics{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:10px;margin:18px 0}.ko-metric,.ko-panel,.ko-order,.ko-operator{border:1px solid var(--kui-border,#dfe5ea);background:var(--kui-surface,#fff);border-radius:12px}.ko-metric{padding:14px}.ko-metric span,.ko-operator span,.ko-operator small,.ko-order header span,.ko-order header>div>span{display:block;color:#67727d;font-size:.82rem}.ko-metric strong{display:block;font-size:1.7rem;margin-top:5px}.ko-panel{padding:16px}.ko-panel-head{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.ko-panel-head h2{font-size:1.05rem;margin:0}.ko-panel-head span{color:#67727d;font-size:.82rem}.ko-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}.ko-operators{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px}.ko-operator{padding:12px;display:grid;grid-template-columns:1fr auto;gap:5px}.ko-operator b{font-size:1.25rem}.ko-summary,.ko-empty{color:#67727d}.ko-stage{margin:10px 0;padding:10px;background:#f5f7f9;border-radius:8px}.ko-orders{margin-top:16px}.ko-order-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px}.ko-order{padding:14px}.ko-order header{display:flex;justify-content:space-between;gap:12px}.ko-order h3{display:inline;margin:0 0 0 8px}.ko-order-status{white-space:nowrap;color:#245d8c!important;font-weight:700}.ko-progress{display:flex;justify-content:space-between;gap:8px;margin:14px 0;font-size:.9rem}.ko-progress span{color:#67727d}.ko-order summary{cursor:pointer;font-weight:600}.ko-pizzas{list-style:none;padding:0;margin:10px 0 0}.ko-pizzas li{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;padding:8px 0;border-top:1px solid #edf0f2}.ko-pizzas em{grid-column:2;color:#245d8c;font-style:normal;font-size:.82rem}.ko-pizzas small{grid-column:2;color:#67727d}.ko-note{font-size:.85rem}.ko-filter [aria-pressed="true"]{background:#174e75;color:#fff}@media(max-width:900px){.ko-metrics{grid-template-columns:repeat(3,1fr)}.ko-head{flex-direction:column}.ko-grid{grid-template-columns:1fr}}@media(max-width:560px){.ko-metrics{grid-template-columns:repeat(2,1fr)}.ko-progress{flex-direction:column}.ko-order-list{grid-template-columns:1fr}}
+.kitchen-board { max-width: none; padding: 20px; }
+.kb-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.kb-header h1 { margin: 0; margin-right: auto; font-size: 32px; }
+.kb-header > span { font-size: 13px; color: var(--kui-muted); }
+.kb-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kb-column { background: var(--kui-neutral); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); min-width: 0; }
+.kb-column h2 { display: flex; gap: 8px; align-items: center; margin: 0; padding: 16px 12px; border-bottom: 1px solid var(--kui-line); font-size: 20px; letter-spacing: -.4px; }
+.kb-column h2 > span:not(.ka-icon) { margin-left: auto; font-size: 13px; background: var(--kui-surface); padding: 4px 8px; border-radius: 20px; }
+.kb-column h2 .ka-icon { width: 20px; height: 20px; color: var(--kui-muted); }
+.kb-cards { padding: 10px; display: grid; gap: 10px; }
+.kb-card { background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); padding: 12px; display: grid; gap: 6px; font-variant-numeric: tabular-nums; }
+.kb-card > strong { font-size: 28px; letter-spacing: -1px; }
+.kb-card > span { font-size: 16px; }
+.kb-card small { font-size: 13px; color: var(--kui-muted); overflow-wrap: anywhere; }
+.kb-time { font-size: 24px; color: var(--color-brand-primary); }
+.kb-empty { color: var(--kui-muted); text-align: center; font-size: 14px; }
+@media (max-width: 700px) {
+  .kb-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kitchen-board { padding: 12px; }
+  .kb-column h2 { font-size: 17px; }
+}
+@media (max-width: 400px) { .kb-columns { grid-template-columns: 1fr; } }

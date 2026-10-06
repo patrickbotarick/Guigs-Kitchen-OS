@@ -33,7 +33,11 @@ export class DispatchService {
           const transition = dispatchTransitions[input.command];
           if (order.version !== input.expectedVersion || order.type !== transition.fulfillmentType || order.status !== transition.from || order.completedAt) throw new PizzaCommandConflictError('Pedido atualizado, concluído ou transição incompatível com o atendimento. Recarregue os dados.');
           // A persisted aggregate alone must not bypass the finishing barrier.
-          if (!order.packingFinishedAt || !order.packingFinishedBy || !order.pizzaItems.some(pizza => pizza.state !== 'CANCELLED') || order.pizzaItems.some(pizza => !['FINISHED', 'CANCELLED'].includes(pizza.state)) || order.extraItems.some(extra => extra.state !== 'CANCELLED' && (extra.state !== 'FINISHED' || extra.checkedQuantity !== extra.quantity))) throw new PizzaCommandConflictError('Pedido ainda não foi conferido e embalado pela Finalização.');
+          if (order.operationalFlowVersion === 2) {
+            const links = await tx.dispatchRouteItem.findMany({ where: { pizza: { orderId, state: { not: 'CANCELLED' } } }, include: { route: true } });
+            if (!['MARK_DELIVERED', 'MARK_PICKED_UP'].includes(input.command) || links.length !== order.pizzaItems.filter(pizza => pizza.state !== 'CANCELLED').length || new Set(links.map(link => link.routeId)).size !== 1 || links.some(link => link.route.status !== 'DISPATCHED') || order.pizzaItems.some(pizza => pizza.state !== 'CANCELLED' && !pizza.counterCheckedAt)) throw new PizzaCommandConflictError('A saída deve ser realizada pela rota fechada no Balcão.');
+          }
+          if (!order.packingFinishedAt || !order.packingFinishedBy || !order.pizzaItems.some(pizza => pizza.state !== 'CANCELLED') || order.pizzaItems.some(pizza => !['FINISHED', 'CANCELLED'].includes(pizza.state)) || order.extraItems.some(extra => extra.state !== 'CANCELLED' && (extra.state !== 'FINISHED' || extra.checkedQuantity !== extra.quantity))) throw new PizzaCommandConflictError('Pedido ainda não foi conferido e embalado.');
           const now = new Date();
           const milestones: Prisma.OrderUpdateManyMutationInput = {
             ...(input.command === 'MARK_WAITING_DRIVER' ? { waitingDriverAt: now } : {}),

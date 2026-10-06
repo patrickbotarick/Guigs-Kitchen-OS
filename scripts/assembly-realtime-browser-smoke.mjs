@@ -69,7 +69,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     await pageA.getByRole('button', { name: /Enviar pro forno/ }).click();
     for (const page of [pageA, pageB]) await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor({ timeout: 5000 });
     const saved = await (await a.request.get(`${apiOrigin}/orders/v2/${order.id}`)).json();
-    assert.equal(saved.status, 'OVEN'); assert.equal(saved.items[0].production.state, 'WAITING_OVEN'); assert.equal(saved.version, 4);
+    assert.equal(saved.status, 'OVEN'); assert.equal(saved.items[0].production.state, 'IN_OVEN'); assert.equal(saved.version, 4);
     assert.equal(await prisma.pizzaCommandReceipt.count({ where: { orderId: order.id } }), 4);
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: order.items[0].id }, orderBy: { itemVersion: 'asc' } });
     const joao = identities.find(session => session.operator.name === operatorFixtures[0].name), carlos = identities.find(session => session.operator.name === operatorFixtures[1].name);

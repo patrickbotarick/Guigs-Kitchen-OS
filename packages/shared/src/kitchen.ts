@@ -111,6 +111,7 @@ const baseItem = { id, orderId: id, position: z.number().int().nonnegative(), no
 export const pizzaAssignmentSchema = z.object({ operatorId: id, operatorName: id, workstationId: id, sessionId: id, assignedAt: instant }).strict();
 export type PizzaAssignment = z.infer<typeof pizzaAssignmentSchema>;
 export const pizzaItemSchema = z.object({ ...baseItem, kind: z.literal('PIZZA'), recipe: pizzaRecipeSchema,
+  counterCheckedAt: instant.nullable().optional(), counterCheckedBy: id.nullable().optional(),
   snapshot: recipeSnapshotSchema, production: pizzaProductionSchema,
   assignment: pizzaAssignmentSchema.nullable().default(null), releasedAt: instant.nullable().default(null),
 }).strict().superRefine((pizza, ctx) => {
@@ -142,6 +143,7 @@ export const dispatchTimelineSchema = z.object({
   pickupReadyAt: instant.nullable(), pickedUpAt: instant.nullable(), completedAt: instant.nullable(),
 }).strict();
 export const structuredOrderSchema = z.object({
+  operationalFlowVersion: z.union([z.literal(1), z.literal(2)]).optional(),
   schemaVersion: z.literal(2), id, number: z.number().int().positive(), customerName: id, customerPhone: z.string().max(30).nullable(),
   fulfillmentType: z.enum(orderTypes), channel: z.enum(['COUNTER', 'WHATSAPP', 'IFOOD', 'OTHER']), notes,
   receivedAt: instant, createdAt: instant, updatedAt: instant, version: z.number().int().nonnegative(), status: z.enum(orderStatuses),
@@ -201,7 +203,7 @@ export const createStructuredOrderSchema = z.object({
 export type CreateStructuredOrderInput = z.infer<typeof createStructuredOrderSchema>;
 
 export const assemblyCommands = ['START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN', 'CLAIM_PIZZA', 'RELEASE_PIZZA'] as const;
-export const ovenCommands = ['ENTER_OVEN', 'REMOVE_FROM_OVEN'] as const;
+export const ovenCommands = ['ENTER_OVEN', 'REMOVE_FROM_OVEN', 'FINISH_PIZZA'] as const;
 export const pizzaCommandSchema = z.object({
   command: z.enum([...assemblyCommands, ...ovenCommands]), expectedState: pizzaProductionStateSchema,
   expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid(),
@@ -218,13 +220,14 @@ export const assemblyCommandTransitions = {
 export const ovenCommandTransitions = {
   ENTER_OVEN: { from: 'WAITING_OVEN', to: 'IN_OVEN' },
   REMOVE_FROM_OVEN: { from: 'IN_OVEN', to: 'BAKED' },
+  FINISH_PIZZA: { from: 'BAKED', to: 'FINISHED' },
 } as const;
 export const ovenConfigurationSchema = z.object({ defaultOvenMinutes: z.number().positive().max(240), ovenCapacity: z.number().int().positive().nullable(), ovenOccupancy: z.number().int().nonnegative(), serverTime: z.string().datetime() }).strict();
 
 const transitions: Record<PizzaProductionState, readonly PizzaProductionState[]> = {
-  WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'CANCELLED'],
+  WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'IN_OVEN', 'CANCELLED'],
   ASSEMBLY_PAUSED: ['ASSEMBLING', 'CANCELLED'], WAITING_OVEN: ['IN_OVEN', 'CANCELLED'],
-  IN_OVEN: ['BAKED', 'CANCELLED'], BAKED: ['FINISHING', 'CANCELLED'], FINISHING: ['FINISHED', 'CANCELLED'], FINISHED: [], CANCELLED: [],
+  IN_OVEN: ['BAKED', 'CANCELLED'], BAKED: ['FINISHING', 'FINISHED', 'CANCELLED'], FINISHING: ['FINISHED', 'CANCELLED'], FINISHED: [], CANCELLED: [],
 };
 export function canTransitionPizza(from: PizzaProductionState, to: PizzaProductionState): boolean {
   return transitions[from]?.includes(to) ?? false;

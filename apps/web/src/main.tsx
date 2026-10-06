@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { NewOrder } from './pages/NewOrder';
 import { LegacyNewOrder } from './pages/LegacyNewOrder';
@@ -10,25 +10,23 @@ import { AssemblyLayout } from './features/kitchen/useAssembly';
 import { KitchenAssemblyPage } from './features/kitchen/pages/KitchenAssemblyPage';
 import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorPage';
 import { KitchenRecoveryPage } from './features/kitchen/pages/KitchenRecoveryPage';
-import { OvenPage } from './features/oven/OvenPage';
-import { FinishingPage } from './features/finishing/FinishingPage';
-import { DispatchPage } from './features/dispatch/DispatchPage';
+import { ProductionStation } from './features/kitchen/ProductionStation';
+import { CounterDispatchPage } from './features/dispatch/CounterDispatchPage';
 import './style.css';
 import './operational-ui.css';
 
 function App() {
   const location = useLocation();
-  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch';
+  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch' || location.pathname === '/counter/dispatch';
   return <div className="app-shell">
     {!assembly && <header className="topbar">
       <Link className="brand" to="/" aria-label="Guig's Kitchen, voltar ao painel"><BrandLogo /></Link>
       <nav aria-label="Navegação principal">
-        <Link className={location.pathname === '/' ? 'active' : ''} to="/">Painel</Link>
-        <Link className={location.pathname === '/orders/new' ? 'active' : ''} to="/orders/new">Novo pedido</Link>
-        <Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Cozinha</Link>
+        <span>Balcão</span><Link className={location.pathname === '/' ? 'active' : ''} to="/">Pedidos</Link>
+        <Link className={location.pathname === '/orders/new' ? 'active' : ''} to="/orders/new">Simulador</Link><Link to="/counter/dispatch">Despacho / Rotas</Link>
+        <span>Cozinha</span><Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Visão geral</Link>
         <Link to="/kitchen/assembly">Montagem</Link>
-        <Link to="/kitchen/oven">Forno</Link>
-        <Link to="/kitchen/finishing">Finalização</Link><Link to="/kitchen/dispatch">Despacho</Link>
+        <Link to="/kitchen/finishing">Forno e Finalização</Link>
       </nav>
     </header>}
     <main><Routes>
@@ -36,8 +34,8 @@ function App() {
       <Route path="/orders/new" element={<NewOrder />} />
       <Route path="/orders/new/legacy" element={<LegacyNewOrder />} />
       <Route path="/kitchen" element={<Kitchen />} />
-      <Route path="/kitchen/oven" element={<OvenPage />} />
-      <Route path="/kitchen/finishing" element={<FinishingPage />} /><Route path="/kitchen/dispatch" element={<DispatchPage />} />
+      <Route path="/kitchen/oven" element={<Navigate to="/kitchen/finishing" replace />} />
+      <Route path="/kitchen/finishing" element={<ProductionStation />} /><Route path="/kitchen/dispatch" element={<Navigate to="/counter/dispatch" replace />} /><Route path="/counter/dispatch" element={<CounterDispatchPage />} />
       <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
         <Route index element={<KitchenAssemblyPage />} />
         <Route path="recovery" element={<KitchenRecoveryPage />} />

@@ -114,7 +114,7 @@ export function usePersistentAssembly(credentials: SessionCredentials, operatorS
       if (alive.current) {
         loaded.current = true; setLoading(false);
         reduce({ type: 'SYNC_ORDERS', orders: reconciliation.current.confirm(confirmed) });
-        setCommandNotice(value.input.command === 'SEND_TO_OVEN' ? 'Montagem confirmada. Pizza aguardando forno.' : 'Comando confirmado e salvo.');
+        setCommandNotice(value.input.command === 'SEND_TO_OVEN' ? 'Montagem concluída. Estado do forno confirmado pelo servidor.' : 'Comando confirmado e salvo.');
       }
       clearPending();
     } catch (cause) {

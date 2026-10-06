@@ -29,6 +29,7 @@ beforeAll(async () => {
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261006120000_pizza_assignment/migration.sql'));
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261006150000_auto_assignment/migration.sql'));
   await applySql(resolve(process.cwd(), 'prisma/migrations/20261006190000_dispatch_commands/migration.sql'));
+  await applySql(resolve(process.cwd(), 'prisma/migrations/20261006210000_operational_routes/migration.sql'));
 });
 
 afterAll(async () => {

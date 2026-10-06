@@ -1,4 +1,5 @@
 import express, { type ErrorRequestHandler } from 'express';
+import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import { z, ZodError } from 'zod';
 import { createOrderSchema, transitionOrderSchema, type OrderHistoryView, type OrderView, type TransitionOrderInput } from '@guigs/shared';
@@ -17,6 +18,9 @@ import { ovenConfiguration } from './oven-config.js';
 import { finishingCommandSchema, dispatchCommandSchema } from '@guigs/shared';
 import { finishingNotifications, type FinishingService } from './finishing.js';
 import { dispatchNotifications, type DispatchService } from './dispatch.js';
+import { routeCommandSchema } from '@guigs/shared';
+import type { RouteUpdated } from '@guigs/shared';
+import type { DispatchRouteService } from './routes.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -26,7 +30,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat' | 'overview'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat' | 'overview'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>, routes?: DispatchRouteService, publishRoute?: (event: RouteUpdated) => void) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -35,6 +39,20 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  if (routes) {
+    app.get('/dispatch/routes', async (_req, res, next) => { try { res.set('Cache-Control', 'no-store').json(await routes.list()); } catch (error) { next(error); } });
+    app.get('/dispatch/routes/:id/history', async (req, res, next) => { try { await operators?.current(credentials(req)); if (!operators) throw new OperationalAuthError(); res.set('Cache-Control', 'no-store').json(await routes.history(z.string().cuid().parse(req.params.id))); } catch (error) { next(error); } });
+    app.post(['/dispatch/routes/commands', '/dispatch/routes/:id/commands'], async (req, res, next) => {
+      try {
+        const result = await routes.execute(req.params.id ? z.string().cuid().parse(req.params.id) : null, routeCommandSchema.parse(req.body), credentials(req));
+        if (!result.replayed) {
+          for (const order of result.orders) { try { publish('order.updated', order); } catch (error) { console.error('Falha na notificação de rota após commit:', error); } }
+          for (const route of result.routes) { try { publishRoute?.({ eventId: randomUUID(), routeId: route.id, version: route.version, timestamp: new Date().toISOString() }); } catch (error) { console.error('Falha na notificação de rota após commit:', error); } }
+        }
+        res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+      } catch (error) { next(error); }
+    });
+  }
   app.get('/kitchen/oven/config', async (_req, res, next) => {
     try { res.set('Cache-Control', 'no-store').json(commands && 'configuration' in commands && typeof commands.configuration === 'function' ? await commands.configuration() : { ...ovenConfiguration(), ovenOccupancy: 0 }); }
     catch (error) { next(error); }
@@ -83,6 +101,12 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
     try {
       const result = await finishing.execute(z.string().cuid().parse(req.params.orderId), finishingCommandSchema.parse(req.body), credentials(req));
       for (const notification of finishingNotifications(result)) { try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação de finalização após commit:', error); } }
+      res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+    } catch (error) { next(error); }
+  });
+  if (finishing) app.post('/counter/orders/:orderId/conference/commands', async (req, res, next) => {
+    try { const result = await finishing.execute(z.string().cuid().parse(req.params.orderId), finishingCommandSchema.parse(req.body), credentials(req), 'COUNTER');
+      for (const notification of finishingNotifications(result)) { try { publishKitchen?.(notification); } catch (error) { console.error('Falha na notificação do Balcão após commit:', error); } }
       res.set('Idempotency-Replayed', String(result.replayed)).json(result);
     } catch (error) { next(error); }
   });

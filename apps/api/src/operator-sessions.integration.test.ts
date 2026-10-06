@@ -14,7 +14,7 @@ const name = `test-operators-${randomUUID()}.db`, path = resolve(process.cwd(), 
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
 let sessions: OperatorSessionService;
 let app: ReturnType<typeof createApp>;
-const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma);
+const creation = new StructuredOrderService(prisma, undefined, 1), commands = new PizzaCommandService(prisma);
 const headers = (auth: SessionCredentials) => ({ Authorization: `Bearer ${auth.token}`, 'X-Workstation-Device-Key': auth.deviceKey });
 async function login(pin = '4826', deviceKey = randomUUID()) {
   const response = await request(app).post('/operators/session').send({ pin, workstationDeviceKey: deviceKey });

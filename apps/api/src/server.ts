@@ -12,6 +12,7 @@ import { OperatorSessionService } from './operator-sessions.js';
 import { SupervisorRecoveryService } from './supervisor-recovery.js';
 import { FinishingService } from './finishing.js';
 import { DispatchService } from './dispatch.js';
+import { DispatchRouteService } from './routes.js';
 
 config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
@@ -29,7 +30,7 @@ const allowedOrigin = (origin: string | undefined, callback: (error: Error | nul
 const prisma = new PrismaClient();
 const orders = new OrderService(prisma);
 const operators = new OperatorSessionService(prisma, Number(process.env.OPERATOR_SESSION_HOURS || 12) * 60 * 60 * 1000, sessionId => io.emit('operators.changed', { sessionId }));
-const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload), operators, new SupervisorRecoveryService(prisma, operators), new FinishingService(prisma), new DispatchService(prisma));
+const app = createApp(orders, (event, order) => io.emit(event, order), allowedOrigin, new StructuredOrderService(prisma, undefined, 2), new PizzaCommandService(prisma), notification => io.emit(notification.type, notification.payload), operators, new SupervisorRecoveryService(prisma, operators), new FinishingService(prisma), new DispatchService(prisma), new DispatchRouteService(prisma), event => io.emit('dispatch.route.updated', event));
 const server = createServer(app);
 const io = new Server(server, { cors: { origin: allowedOrigin } });
 

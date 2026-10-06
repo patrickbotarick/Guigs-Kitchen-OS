@@ -15,7 +15,7 @@ const execute = (orderId: string, pizzaId: string, payload: PizzaCommandInput) =
 
 const name = `test-commands-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma);
+const creation = new StructuredOrderService(prisma, undefined, 1), commands = new PizzaCommandService(prisma);
 const notifications: KitchenNotification[] = [];
 const app = createApp(new OrderService(prisma), () => {}, 'http://localhost:5173', creation, commands, event => notifications.push(event));
 async function fresh(count = 1) {
@@ -190,7 +190,7 @@ describe('comandos persistentes por pizza', () => {
   });
   it('não aceita comandos ainda não implementados, timestamps do cliente ou UUID inválida', async () => {
     const order = await fresh(), before = await take(order.id);
-    for (const patch of [{ command: 'FINISH_PIZZA' }, { assemblyStartedAt: '2000-01-01' }, { clientCommandId: 'abc' }]) expect((await request(app).post(endpoint(order)).set(authHeaders).send({ ...input(order, 'START_ASSEMBLY'), ...patch })).status).toBe(400);
+    for (const patch of [{ command: 'DISPATCH_PIZZA' }, { assemblyStartedAt: '2000-01-01' }, { clientCommandId: 'abc' }]) expect((await request(app).post(endpoint(order)).set(authHeaders).send({ ...input(order, 'START_ASSEMBLY'), ...patch })).status).toBe(400);
     expect(await take(order.id)).toEqual(before);
   });
   it('idempotência retorna resultado anterior sem alterar timestamps, versões ou histórico', async () => {

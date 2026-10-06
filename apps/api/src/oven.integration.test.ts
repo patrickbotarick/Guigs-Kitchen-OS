@@ -14,7 +14,7 @@ import { ovenConfiguration } from './oven-config.js';
 
 const name = `test-oven-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
-const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma), notifications: KitchenNotification[] = [];
+const creation = new StructuredOrderService(prisma, undefined, 1), commands = new PizzaCommandService(prisma), notifications: KitchenNotification[] = [];
 const originalCapacity = process.env.OVEN_CAPACITY, originalMinutes = process.env.OVEN_DEFAULT_MINUTES;
 afterEach(() => {
   if (originalCapacity === undefined) delete process.env.OVEN_CAPACITY; else process.env.OVEN_CAPACITY = originalCapacity;

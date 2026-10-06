@@ -23,7 +23,7 @@ function PizzaCard({ pizza, index, selected, onSelect }: { pizza: PizzaItem; ind
   </button>;
 }
 const stages: { label: string; icon: IconName }[] = [
-  { label: 'Na fila', icon: 'queue' }, { label: 'Montagem', icon: 'assembly' }, { label: 'Fila do forno', icon: 'oven' },
+    { label: 'Na fila', icon: 'queue' }, { label: 'Montagem', icon: 'assembly' }, { label: 'Forno', icon: 'oven' },
   { label: 'Finalização', icon: 'check' }, { label: 'Concluído', icon: 'flag' },
 ];
 function OrderTimeline({ order }: { order: AssemblyOrder }) {

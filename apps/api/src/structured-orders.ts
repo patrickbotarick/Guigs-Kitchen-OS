@@ -10,7 +10,8 @@ export class IdempotencyConflictError extends Error {}
 export interface StructuredCreationResult { order: Order; replayed: boolean }
 
 export class StructuredOrderService {
-  constructor(private readonly prisma: PrismaClient, private readonly pickTie?: TiePicker) {}
+  // Flow 1 is explicit for compatibility fixtures; all normal creation uses flow 2.
+  constructor(private readonly prisma: PrismaClient, private readonly pickTie?: TiePicker, private readonly operationalFlowVersion: 1 | 2 = 2) {}
 
   async get(id: string): Promise<Order | null> {
     const read = await loadCompatibleOrder(this.prisma, id);
@@ -50,7 +51,7 @@ export class StructuredOrderService {
           const now = new Date();
           const status = deriveOrderProductionState({ pizzas: input.pizzas.map(() => 'WAITING_ASSEMBLY'), extras: extras.map(extra => ({ state: 'WAITING_FINISHING', quantity: extra.quantity, checkedQuantity: 0 })), packingConfirmed: false });
           const created = await tx.order.create({ data: {
-            number: counter.value, schemaVersion: 2, structuredChannel: input.channel, type: input.fulfillmentType,
+            number: counter.value, schemaVersion: 2, operationalFlowVersion: this.operationalFlowVersion, structuredChannel: input.channel, type: input.fulfillmentType,
             customerName: input.customerName, customerPhone: input.customerPhone || null, notes: input.notes || null, status,
             receivedAt: now, productionQueueAt: now,
             statusHistory: { create: { toStatus: status, changedAt: now, actorType: 'SYSTEM', metadata: JSON.stringify({ origin: 'COUNTER_V2', clientRequestId }) } },

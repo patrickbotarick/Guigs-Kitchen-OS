@@ -1,5 +1,7 @@
 # Padrão visual do Guig's Kitchen OS
 
+**Atualização do fluxo em 06/10/2026:** os tokens e a Montagem abaixo continuam como referência. O quadro `/kitchen` foi simplificado para quatro colunas; Forno e Finalização usam uma única estação em `/kitchen/finishing`; rotas/conferência/embalagem/despacho pertencem a `/counter/dispatch`. Os detalhes de antigas telas abaixo são registro histórico. `test:ui:browser` agora executa `operational-flow-browser-smoke.mjs`, com fluxo persistente, redirects e capturas em 1024×768, 1280×800 e 1366×768 no diretório temporário `guigs-flow-v2-validation`. Ver [contrato vigente](KITCHEN_OPERATION_FLOW_V2.md).
+
 Referência oficial: **`/kitchen/assembly`**, auditada no código e no navegador em 06/10/2026. A Montagem permanece intacta. Esta rodada aproxima Balcão/Fila, Forno, Finalização e Despacho da referência, sem alterar domínio ou iniciar a Fase 6.
 
 ## Auditoria da Montagem
