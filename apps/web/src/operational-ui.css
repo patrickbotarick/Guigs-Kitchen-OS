@@ -119,6 +119,38 @@
 .modifier .ka-icon { width: 18px; height: 18px; margin-right: 4px; }
 .form-section { padding: 20px; }
 .form-section, .pizza-form, .stat { border-radius: var(--kui-panel-radius); }
+.form-page { max-width: 1280px; }
+.simulator-pizzas { background: var(--kui-surface); }
+.pizza-summary-list { display: grid; gap: 8px; }
+.simulator-pizza-card { min-width: 0; border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); background: var(--kui-surface); padding: 12px; }
+.simulator-pizza-card.is-editing { border-color: var(--color-brand-primary); background: var(--kui-selected); box-shadow: var(--kui-selected-shadow); }
+.simulator-pizza-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.simulator-pizza-card-head > div:first-child { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.simulator-pizza-card h3 { margin: 0; font-size: 19px; }
+.simulator-pizza-card .pizza-index { border-radius: 50%; width: 32px; height: 32px; }
+.simulator-pizza-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.simulator-pizza-actions .button, .simulator-pizza-actions .remove-button { min-height: 44px; font-size: 12px; }
+.simulator-pizza-summary { display: grid; gap: 4px; margin: 10px 0 0 41px; min-width: 0; }
+.simulator-pizza-summary strong { font-size: 14px; }
+.simulator-pizza-summary span { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.simulator-pizza-summary small { color: var(--kui-muted); font-size: 12px; overflow-wrap: anywhere; }
+.simulator-pizza-card .pizza-form { margin-top: 12px; padding: 12px; background: var(--kui-surface-elevated); }
+.simulator-pizza-card .pizza-form .ka-builder { margin: 0; padding: 12px; background: var(--kui-surface); }
+.extra-summary { display: flex; align-items: center; min-height: 44px; margin-bottom: 8px; padding: 8px 12px; border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); background: var(--kui-surface-elevated); color: var(--kui-muted); font-size: 13px; }
+.structured-extras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.extra-entry { display: grid; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); background: var(--kui-surface); }
+.extra-entry.is-selected { border-color: var(--color-brand-primary); background: var(--kui-selected); }
+.extra-entry label { margin: 0; }
+.extra-entry label > span { color: var(--kui-text); font-weight: 700; }
+.extra-entry input[type=number] { min-height: 44px; }
+.simulator-submit { position: sticky; bottom: 8px; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 12px; border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); background: #fffffff2; box-shadow: 0 4px 14px #17141918; backdrop-filter: blur(4px); }
+.simulator-submit > div { display: grid; gap: 3px; min-width: 0; }
+.simulator-submit strong { font-size: 16px; }
+.simulator-submit span, .simulator-submit small { color: var(--kui-muted); overflow-wrap: anywhere; }
+.simulator-submit .button { flex: 0 0 auto; min-height: 55px; }
+.success { border-radius: var(--kui-panel-radius); padding: 48px 24px; }
+.success .success-mark { width: 48px; height: 48px; margin-bottom: 16px; }
+.success h2 { font-size: clamp(28px, 4vw, 40px); }
 .section-heading { margin-bottom: 16px; }
 .page .remove-button, .page .add-button { min-height: 44px; touch-action: manipulation; }
 .hero { border-radius: var(--kui-panel-radius); padding: 24px; }
@@ -142,4 +174,10 @@
   .page { padding: 16px 8px 32px; }
   .topbar nav { overflow: visible; justify-content: flex-start; }
   .status-line { white-space: normal; flex-wrap: wrap; }
+  .simulator-pizza-card-head { align-items: flex-start; flex-direction: column; }
+  .simulator-pizza-actions { width: 100%; justify-content: flex-start; }
+  .simulator-pizza-summary { margin-left: 0; }
+  .structured-extras { grid-template-columns: 1fr; }
+  .simulator-submit { align-items: stretch; flex-direction: column; }
+  .simulator-submit .button { width: 100%; }
 }

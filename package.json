@@ -35,6 +35,7 @@
     "test:assembly:auto-assignment:browser": "node scripts/assembly-auto-assignment-browser-smoke.mjs",
     "test:assembly:presence:browser": "node scripts/assembly-presence-browser-smoke.mjs",
     "test:structured:browser": "node scripts/structured-browser-smoke.mjs",
+    "test:order-entry:browser": "node scripts/order-entry-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web"
   },
   "devDependencies": {
