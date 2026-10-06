@@ -1,5 +1,9 @@
 # Guig's Kitchen — Balcão, montagem e forno
 
+**Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE.** 4B fechada no commit `a8534d1`; piloto físico permanece validação operacional pendente.
+
+**Fase 5A — Finalização:** `/kitchen/finishing` organiza pedidos parciais/completos, pizzas BAKED → FINISHING → FINISHED, extras por unidade, embalagem e liberação explícita para WAITING_DISPATCH. Usa PIN, heartbeat, CAS, idempotência e realtime existentes, sem despacho/entrega. [Contrato, migration, testes e limites](docs/PHASE_5A_FINISHING.md).
+
 **Fase 3 — fluxo de montagem persistente, multioperador e realtime: STATUS CONCLUÍDA.** Fechamento da 3D.2D no commit `5f76de4`. Piloto físico permanece como validação operacional pendente e não bloqueia tecnicamente o início da Fase 4A — forno.
 
 **Fase 4A — forno operacional:** `/kitchen/oven` exibe a fila compartilhada WAITING_OVEN e pizzas IN_OVEN, com comandos persistentes ENTER_OVEN/REMOVE_FROM_OVEN, autoria, CAS, idempotência e realtime. Usa o mesmo PIN/terminal/heartbeat da montagem. Timer por timestamps do servidor, referência temporária configurável por `OVEN_DEFAULT_MINUTES` (default 7 minutos), sem retirada automática. BAKED prepara o handoff; finalização ainda não implementada. [Contrato, configuração, testes e limites](docs/PHASE_4A_OVEN.md).
@@ -30,6 +34,7 @@ Com ambiente preparado, também é possível executar `npm run dev`. Na primeira
 | Cozinha | http://localhost:5173/kitchen |
 | Fila de Montagem (persistida, identificação por PIN) | http://localhost:5173/kitchen/assembly |
 | Forno (fila compartilhada, identificação por PIN) | http://localhost:5173/kitchen/oven |
+| Finalização (por pedido, identificação por PIN) | http://localhost:5173/kitchen/finishing |
 | Simulador da montagem (somente desenvolvimento) | http://localhost:5173/kitchen/assembly/dev |
 | Saúde da API | http://localhost:3333/health |
 | Pedidos ativos | `GET http://localhost:3333/orders` |

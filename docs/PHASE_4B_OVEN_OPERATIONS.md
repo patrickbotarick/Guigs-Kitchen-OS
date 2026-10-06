@@ -1,5 +1,7 @@
 # Fase 4B — organização operacional do forno
 
+Fechada no commit `a8534d1` — `feat: add oven capacity and operational timing`. **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE.** Piloto físico permanece validação operacional pendente. Finalização passa à [Fase 5A](PHASE_5A_FINISHING.md); as seções abaixo descrevem o escopo original de 4B.
+
 ## Entrega
 
 Fase 4A revisada e validada antes de alterações, fechada no commit `23a2637` — `feat: add persistent oven workflow`. Lint/typecheck/build, 182 testes da API, 34 da montagem e 16 do forno passaram antes do commit. Bancos, backups, builds e segredos ficaram fora do Git; package-lock.json permaneceu inalterado. Sem push.

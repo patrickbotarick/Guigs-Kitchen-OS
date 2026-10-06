@@ -152,6 +152,19 @@ export const structuredOrderSchema = z.object({
 });
 export type Order = z.infer<typeof structuredOrderSchema>;
 
+const finishingIntent = { expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid() };
+const finishingPizzaIntent = { ...finishingIntent, pizzaId: id, expectedItemVersion: z.number().int().nonnegative() };
+export const finishingCommandSchema = z.discriminatedUnion('command', [
+  z.object({ ...finishingPizzaIntent, command: z.literal('START_FINISHING') }).strict(),
+  z.object({ ...finishingPizzaIntent, command: z.literal('CHECK_PIZZA') }).strict(),
+  z.object({ ...finishingIntent, command: z.literal('CHECK_EXTRA'), extraId: id, expectedItemVersion: z.number().int().nonnegative(), checkedQuantity: z.number().int().min(1).max(30) }).strict(),
+  z.object({ ...finishingIntent, command: z.literal('CONFIRM_PACKAGING') }).strict(),
+  z.object({ ...finishingIntent, command: z.literal('RELEASE_TO_DISPATCH') }).strict(),
+]);
+export type FinishingCommandInput = z.infer<typeof finishingCommandSchema>;
+export const finishingCommandResultSchema = z.object({ order: structuredOrderSchema, clientCommandId: z.string().uuid(), replayed: z.boolean() }).strict();
+export type FinishingCommandResult = z.infer<typeof finishingCommandResultSchema>;
+
 // Creation accepts intent only, never client IDs/positions/status/timestamps/snapshots.
 export const createStructuredOrderSchema = z.object({
   clientRequestId: z.string().uuid(),

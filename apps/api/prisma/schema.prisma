@@ -78,6 +78,7 @@ model Order {
   extraItems ExtraItem[]
   structuredCreation StructuredOrderCreation?
   pizzaCommands PizzaCommandReceipt[]
+  finishingCommands FinishingCommandReceipt[]
 
   @@index([status, receivedAt])
 }
@@ -89,6 +90,17 @@ model StructuredOrderCreation {
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
   responseSnapshot Json
   createdAt DateTime @default(now())
+}
+
+model FinishingCommandReceipt {
+  clientCommandId String @id
+  payloadHash String
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  responseSnapshot Json
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 enum StructuredOrderChannel {

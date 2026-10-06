@@ -43,7 +43,7 @@ function OperationalOven({ session, credentials, sessionBusy, sessionError, end,
   return <section className="oven-page">
     <header className="oven-header"><div><h1>Forno</h1><p aria-label="Identidade operacional">{session.operatorName} • {session.workstationName} • {session.presenceStatus === 'ONLINE' ? 'Presença válida' : 'Confirme presença'}</p></div>
       <div className="oven-header-actions"><span role="status" aria-label="Conexão Forno" className={`oven-connection oven-connection-${oven.connection.toLowerCase()}`}>{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[oven.connection]}</span>
-        <button type="button" className="button secondary" disabled={oven.busy || oven.pending || sessionBusy} onClick={() => void end()}>Encerrar turno</button><Link className="button subtle" to="/kitchen/assembly">Montagem</Link><Link className="button subtle" to="/">Balcão</Link></div>
+        <button type="button" className="button secondary" disabled={oven.busy || oven.pending || sessionBusy} onClick={() => void end()}>Encerrar turno</button><Link className="button subtle" to="/kitchen/finishing">Finalização</Link><Link className="button subtle" to="/kitchen/assembly">Montagem</Link><Link className="button subtle" to="/">Balcão</Link></div>
     </header>
     <div className="oven-toolbar"><p>Fila compartilhada · previsão temporária {oven.config ? formatDuration(oven.config.defaultOvenMinutes * 60) : 'carregando'} · retirada sempre manual</p>
       <button type="button" className="button secondary" disabled={oven.refreshing || oven.busy} onClick={oven.reload}>{oven.refreshing ? 'Atualizando...' : 'Atualizar'}</button>

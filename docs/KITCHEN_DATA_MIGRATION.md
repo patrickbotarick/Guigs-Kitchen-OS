@@ -374,3 +374,7 @@ A criação estruturada, catálogo compartilhado, idempotência transacional, sn
 ### Evolução 4B — operação de forno
 
 4A fechada em `23a2637`. Etapa atual: capacidade opcional por configuração, ocupação transacional global por pizza, proteção da última vaga entre pedidos/tablets, prioridade pela previsão de saída, autoria de entrada e referência de tempo preservada historicamente. Sem migration ou múltiplos fornos. [Contrato e validação 4B](PHASE_4B_OVEN_OPERATIONS.md). Próximo ciclo: revisão/commit 4B, piloto físico e definição do contrato de Finalização (Fase 5), que não foi implementada.
+
+### Evolução 5A — finalização e conferência
+
+4B fechada em `a8534d1`. **Fase 4 — Forno: STATUS CONCLUÍDA TECNICAMENTE**; piloto físico pendente. Etapa atual: estação por pedido em `/kitchen/finishing`, conferência de pizzas/extra por unidade, embalagem persistente e release explícito WAITING_DISPATCH, com autoria/CAS/idempotência/realtime e migration aditiva só de recibos. [Contrato/testes/limites 5A](PHASE_5A_FINISHING.md). Próximo: revisão/commit 5A, piloto ponta a ponta e definição de correções operacionais/contrato 5B. Despacho/entrega não implementados.
