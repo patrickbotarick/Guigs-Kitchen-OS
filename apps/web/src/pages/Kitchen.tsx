@@ -1,89 +1,29 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { nextOrderStatus, type ActorType, type OrderHistoryView, type OrderStatus, type OrderView } from '@guigs/shared';
-import { getOrderHistory, transitionOrder } from '../api';
-import { useKitchen } from '../useKitchen';
-import { AssemblyIcon } from '../features/kitchen/components/AssemblyIcons';
+import { useState } from 'react';
+import type { Order, OperatorOverview, PizzaItem } from '@guigs/shared';
+import { ovenQueues } from '../features/oven/oven';
+import { finishingProgress } from '../features/finishing/finishing';
+import { operatorLoads, orderProgress, overviewCounts, stageLabel, pizzas } from '../features/kitchen/overview';
+import { useKitchenOverview } from '../features/kitchen/useKitchenOverview';
+import './kitchen-overview.css';
 
-const statusLabels: Record<OrderStatus, string> = {
-  WAITING_PRODUCTION: 'Aguardando produção',
-  IN_PRODUCTION: 'Em produção',
-  OVEN: 'Forno',
-  FINISHING: 'Finalização',
-  WAITING_DISPATCH: 'Aguardando expedição',
-  WAITING_DRIVER: 'Aguardando motoboy',
-  OUT_FOR_DELIVERY: 'Em rota',
-  DELIVERED: 'Entregue',
-  READY_FOR_PICKUP: 'Pronto para retirada',
-  PICKED_UP: 'Retirado',
-  CANCELLED: 'Cancelado',
-};
-const actionLabels: Partial<Record<OrderStatus, string>> = {
-  WAITING_PRODUCTION: 'Iniciar produção',
-  IN_PRODUCTION: 'Enviar ao forno',
-  OVEN: 'Enviar para finalização',
-  FINISHING: 'Concluir finalização',
-};
-const actorLabels: Record<ActorType, string> = { SYSTEM: 'Sistema', OPERATOR: 'Operador', WORKER: 'Montador', ADMIN: 'Admin', INTEGRATION: 'Integração' };
-const time = (date: string) => new Date(date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-function OrderCard({ order, refresh }: { order: OrderView; refresh: () => Promise<void> }) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState<OrderHistoryView[]>([]);
-  const [historyError, setHistoryError] = useState('');
-  const next = nextOrderStatus[order.status];
-
-  useEffect(() => {
-    if (!historyOpen) return;
-    let active = true;
-    void getOrderHistory(order.id).then(entries => {
-      if (active) { setHistory(entries); setHistoryError(''); }
-    }).catch(() => { if (active) setHistoryError('Não foi possível carregar o histórico.'); });
-    return () => { active = false; };
-  }, [historyOpen, order.id, order.status]);
-
-  async function advance() {
-    if (!next || pending) return;
-    setPending(true);
-    setError('');
-    try {
-      await transitionOrder(order.id, { expectedStatus: order.status, toStatus: next });
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível avançar o pedido.');
-      await refresh();
-    } finally { setPending(false); }
-  }
-
-  return <article className="order-card">
-    <div className="card-top"><div><div className="order-number">#{String(order.number).padStart(4, '0')}</div><h2>{order.customerName}</h2></div><span className={`pill status-${order.status.toLowerCase()}`}>{statusLabels[order.status]}</span></div>
-    <div className="order-meta"><span>{order.type === 'DELIVERY' ? 'DELIVERY' : 'RETIRADA'}</span><span>{time(order.receivedAt)}</span><span>{order.items.length} {order.items.length === 1 ? 'pizza' : 'pizzas'}</span></div>
-    <div className="items">{order.items.map((item, index) => <div className="pizza" key={item.id}>
-      <div className="pizza-title"><span className="pizza-index">{index + 1}</span><strong>{item.name} <span>{item.size}</span></strong></div>
-      {item.ingredients && <p className="ingredients">{item.ingredients}</p>}
-      {item.modifiers.map(modifier => <div className={`modifier ${modifier.kind.toLowerCase()}`} key={modifier.id}><AssemblyIcon name={modifier.kind === 'REMOVED' ? 'close' : 'plus'} />{modifier.kind === 'REMOVED' ? 'SEM ' : modifier.kind === 'CRUST' ? 'BORDA ' : ''}{modifier.name}</div>)}
-      {item.notes && <p className="item-note">Obs: {item.notes}</p>}
-    </div>)}</div>
-    {order.notes && <div className="order-note">Pedido: {order.notes}</div>}
-    <div className="card-actions">
-      {next && <button className="button primary" type="button" disabled={pending} onClick={() => void advance()}>{pending ? 'Atualizando...' : actionLabels[order.status]}</button>}
-      <button className="button subtle" type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen(open => !open)}>{historyOpen ? 'Ocultar histórico' : 'Ver histórico'}</button>
-    </div>
-    {error && <div className="card-error" role="alert">{error}</div>}
-    {historyOpen && <section className="history"><h3>Histórico do pedido</h3>{historyError ? <p role="alert">{historyError}</p> : <ol>{history.map(entry => <li key={entry.id}><time dateTime={entry.changedAt}>{time(entry.changedAt)}</time><span>{entry.fromStatus ? `${statusLabels[entry.fromStatus]} → ${statusLabels[entry.toStatus]}` : `Pedido criado → ${statusLabels[entry.toStatus]}`}</span><small>{actorLabels[entry.actorType]}</small></li>)}</ol>}</section>}
-  </article>;
-}
+type Filter = 'ALL' | 'ASSEMBLY' | 'OVEN' | 'FINISHING' | 'DISPATCH';
+const statusLabels: Record<Order['status'], string> = { WAITING_PRODUCTION: 'Aguardando produção', IN_PRODUCTION: 'Em produção', OVEN: 'Forno', FINISHING: 'Finalização', WAITING_DISPATCH: 'Aguardando despacho', WAITING_DRIVER: 'Aguardando motoboy', OUT_FOR_DELIVERY: 'Em rota', DELIVERED: 'Entregue', READY_FOR_PICKUP: 'Pronto para retirada', PICKED_UP: 'Retirado', CANCELLED: 'Cancelado' };
+const connectionLabels = { ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' } as const;
+const time = (value?: string | null) => value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+function stageMatches(order: Order, filter: Filter) { if (filter === 'ALL') return true; const states = pizzas([order]).map(p => p.production.state); if (filter === 'ASSEMBLY') return states.some(s => ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'].includes(s)); if (filter === 'OVEN') return states.some(s => ['WAITING_OVEN', 'IN_OVEN'].includes(s)); if (filter === 'FINISHING') return order.status === 'FINISHING' || states.some(s => ['BAKED', 'FINISHING'].includes(s)); return ['WAITING_DISPATCH', 'WAITING_DRIVER', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'].includes(order.status); }
+function OperatorCard({ operator, load }: { operator: OperatorOverview; load: { waiting: number; active: number; total: number } }) { return <article className="ko-operator"><div><strong>{operator.operatorName}</strong><span>{operator.workstationName ?? 'Sem terminal ativo'}</span></div><span className={`ko-presence ko-${operator.presenceStatus.toLowerCase()}`}>{operator.presenceStatus === 'ONLINE' ? 'Online' : operator.presenceStatus === 'STALE' ? 'Atenção' : 'Offline'}</span><b>{load.total} {load.total === 1 ? 'pizza' : 'pizzas'}</b><small>{load.active} em montagem · {load.waiting} aguardando</small></article>; }
+function PizzaLine({ pizza }: { pizza: PizzaItem }) { return <li><span>Pizza {pizza.position + 1}</span><strong>{pizza.snapshot.size === 'BROTO' ? 'Broto' : 'Grande'} · {pizza.snapshot.composition === 'HALF_HALF' ? 'Meio a meio' : 'Inteira'}</strong><em>{stageLabel(pizza.production.state)}</em><small>{pizza.assignment?.operatorName ? `Responsável: ${pizza.assignment.operatorName}` : `Enfileirada às ${time(pizza.production.queuedAt)}`}</small></li>; }
+function OrderCard({ order }: { order: Order }) { const progress = orderProgress(order); return <article className="ko-order"><header><div><strong>#{String(order.number).padStart(4, '0')}</strong><h3>{order.customerName}</h3><span>{order.fulfillmentType === 'DELIVERY' ? 'Delivery' : order.fulfillmentType === 'PICKUP' ? 'Retirada' : 'Balcão'} · recebido às {time(order.receivedAt)}</span></div><span className="ko-order-status">{statusLabels[order.status]}</span></header><div className="ko-progress"><b>{progress.label}</b><span>{order.items.length} itens · {progress.assembly ? `${progress.assembly} em montagem` : progress.inOven ? `${progress.inOven} no forno` : 'fluxo avançado'}</span></div><details><summary>Ver pizzas e detalhes</summary><ul className="ko-pizzas">{order.items.filter((item): item is PizzaItem => item.kind === 'PIZZA').map(pizza => <PizzaLine key={pizza.id} pizza={pizza} />)}</ul>{order.notes && <p className="ko-note">Observação: {order.notes}</p>}</details></article>; }
 
 export function Kitchen() {
-  const { orders, apiOnline, realtime, error, refresh } = useKitchen();
-  const waiting = orders.filter(order => order.status === 'WAITING_PRODUCTION').length;
-  return <div className="page">
-    <div className="page-head"><div><div className="eyebrow">PRODUÇÃO · ACOMPANHAMENTO</div><h1>Fila da cozinha</h1><p>Pedidos ativos, em ordem de chegada. Ações temporárias para validar o fluxo.</p></div><Link className="button primary" to="/orders/new">+ Novo pedido</Link></div>
-    <div className="queue-toolbar"><div><strong>{orders.length}</strong> {orders.length === 1 ? 'pedido ativo' : 'pedidos ativos'} <span className="queue-waiting">· {waiting} aguardando produção</span></div><div className="status-line"><span className={apiOnline ? 'dot on' : 'dot'} />API {apiOnline ? 'online' : 'offline'}<span className={realtime ? 'dot on' : 'dot'} />Realtime {realtime ? 'conectado' : 'reconectando'}</div></div>
-    {error && <div className="alert" role="alert">{error} <button type="button" onClick={() => void refresh()}>Tentar agora</button></div>}
-    {orders.length === 0 ? <div className="empty"><div className="empty-icon">◌</div><h2>Nenhum pedido ativo</h2><p>Crie um pedido de teste para começar a simulação.</p><Link className="button secondary" to="/orders/new">Criar pedido</Link></div> :
-      <div className="order-grid">{orders.map(order => <OrderCard order={order} refresh={refresh} key={order.id} />)}</div>}
-  </div>;
+  const { orders, operators, loading, refreshing, error, connection, refresh } = useKitchenOverview(); const [filter, setFilter] = useState<Filter>('ALL'); const counts = overviewCounts(orders); const loads = operatorLoads(orders); const oven = ovenQueues(orders); const finishing = orders.filter(order => order.status === 'FINISHING'); const dispatch = orders.filter(order => ['WAITING_DISPATCH', 'WAITING_DRIVER', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'].includes(order.status)); const visible = orders.filter(order => stageMatches(order, filter));
+  return <section className="page kitchen-overview"><header className="ko-head"><div><div className="eyebrow">SUPERVISÃO · COZINHA</div><h1>Central Operacional da Cozinha</h1><p>Acompanhamento compartilhado das filas persistidas, sem executar comandos.</p></div><div className="ko-head-actions"><span role="status" className={`ko-connection ko-${connection.toLowerCase()}`}>{connectionLabels[connection]}</span><button className="button secondary" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? 'Atualizando…' : 'Atualizar'}</button></div></header>
+    <nav className="ko-links" aria-label="Módulos operacionais"><Link className="button subtle" to="/kitchen/assembly">Montagem</Link><Link className="button subtle" to="/kitchen/oven">Forno</Link><Link className="button subtle" to="/kitchen/finishing">Finalização</Link><Link className="button subtle" to="/kitchen/dispatch">Despacho</Link></nav>
+    {error && <p className="alert" role="alert">{error} <button type="button" onClick={() => void refresh()}>Tentar novamente</button></p>}
+    <section className="ko-metrics" aria-label="Resumo da produção">{[['Aguardando montagem', counts.waitingAssembly], ['Em montagem', counts.assembling], ['Aguardando forno', counts.waitingOven], ['No forno', counts.inOven], ['Finalização', counts.finishing], ['Aguardando despacho', counts.waitingDispatch]].map(([label, value]) => <div className="ko-metric" key={String(label)}><span>{label}</span><strong>{value}</strong></div>)}</section>
+    <div className="ko-filter" role="group" aria-label="Filtro da central">{(['ALL', 'ASSEMBLY', 'OVEN', 'FINISHING', 'DISPATCH'] as Filter[]).map(value => <button key={value} type="button" className="button subtle" aria-pressed={filter === value} onClick={() => setFilter(value)}>{({ ALL: 'Todos', ASSEMBLY: 'Montagem', OVEN: 'Forno', FINISHING: 'Finalização', DISPATCH: 'Despacho' })[value]}</button>)}</div>
+    <div className="ko-grid"><section className="ko-panel"><div className="ko-panel-head"><h2>Operadores e carga</h2><span>{operators.length} ativos cadastrados</span></div>{operators.length ? <div className="ko-operators">{operators.map(operator => <OperatorCard key={operator.operatorId} operator={operator} load={loads.get(operator.operatorId) ?? { waiting: 0, active: 0, total: 0 }} />)}</div> : <p className="ko-empty">Nenhuma sessão operacional disponível no momento.</p>}</section><section className="ko-panel"><div className="ko-panel-head"><h2>Forno</h2><span>{oven.inside.length} dentro · {oven.waiting.length} aguardando</span></div><p className="ko-summary">A fila e os timers são os mesmos exibidos no módulo de forno. A Central apenas acompanha.</p>{!oven.inside.length && !oven.waiting.length && <p className="ko-empty">Nenhuma pizza nas filas do forno.</p>}{oven.inside.length > 0 && <p className="ko-stage">{oven.inside.length} pizza(s) em produção no forno</p>}{oven.waiting.length > 0 && <p className="ko-stage">{oven.waiting.length} pizza(s) aguardando entrada</p>}</section><section className="ko-panel"><div className="ko-panel-head"><h2>Finalização</h2><span>{finishing.length} pedido(s)</span></div>{finishing.length ? finishing.map(order => { const progress = finishingProgress(order); return <p className="ko-stage" key={order.id}>#{order.number}: {progress.checked}/{progress.total} itens conferidos</p>; }) : <p className="ko-empty">Nenhum pedido em finalização.</p>}</section><section className="ko-panel"><div className="ko-panel-head"><h2>Despacho</h2><span>{dispatch.length} pedido(s)</span></div>{dispatch.length ? dispatch.map(order => <p className="ko-stage" key={order.id}>#{order.number}: {statusLabels[order.status]}</p>) : <p className="ko-empty">Nenhum pedido aguardando despacho.</p>}</section></div>
+    <section className="ko-panel ko-orders"><div className="ko-panel-head"><h2>Pedidos consolidados</h2><span>{visible.length} de {orders.length}</span></div>{loading && <p role="status" className="ko-empty">Carregando pedidos persistidos…</p>}{!loading && !visible.length && <p className="ko-empty">Nenhum pedido neste filtro.</p>}<div className="ko-order-list">{visible.map(order => <OrderCard key={order.id} order={order} />)}</div></section>
+  </section>;
 }

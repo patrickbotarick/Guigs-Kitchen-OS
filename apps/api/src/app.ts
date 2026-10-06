@@ -26,7 +26,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat' | 'overview'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -41,6 +41,9 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   });
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
   if (operators) {
+    if (typeof operators.overview === 'function') app.get('/operators/overview', async (_req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').json(await operators.overview()); } catch (error) { next(error); }
+    });
     app.post('/operators/session/heartbeat', async (req, res, next) => {
       try { z.object({}).strict().parse(req.body); res.set('Cache-Control', 'no-store').json(await operators.heartbeat(credentials(req))); } catch (error) { next(error); }
     });

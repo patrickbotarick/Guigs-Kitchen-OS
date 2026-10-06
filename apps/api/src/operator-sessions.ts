@@ -122,6 +122,16 @@ export class OperatorSessionService {
     return { sessionId: session.id, operatorId: session.operatorId, workstationId: session.workstationId, view: this.view(session) };
   }
   async current(credentials: SessionCredentials) { return (await this.validate(credentials)).view; }
+  async overview() {
+    const now = this.now();
+    const operators = await this.prisma.operator.findMany({ where: { active: true }, include: { sessions: { where: { active: true, endedAt: null, expiresAt: { gt: now } }, include: { operator: true, workstation: true }, orderBy: { startedAt: 'desc' }, take: 1 } }, orderBy: { name: 'asc' } });
+    return operators.map(operator => {
+      const session = operator.sessions[0];
+      return { operatorId: operator.id, operatorName: operator.name, role: operator.role as 'ASSEMBLER' | 'SUPERVISOR', sessionId: session?.id ?? null,
+        workstationName: session?.workstation.name ?? null, available: session?.available ?? false,
+        presenceStatus: session ? sessionPresence(session, now, this.policy) : 'OFFLINE' as const, lastSeenAt: session?.lastSeenAt?.toISOString() ?? null };
+    });
+  }
   async setAvailability(credentials: SessionCredentials, available: boolean) {
     const result = await transactionRetry(this.prisma, async tx => {
       const actor = await this.validate(credentials, tx);

@@ -239,3 +239,6 @@ Rota `/kitchen/oven`, fila compartilhada por pizza, ordenação pela montagem ma
 ## Fase 5B.2 — Despacho e conclusão operacional
 
 Rota `/kitchen/dispatch`, fila por pedido com filtros Delivery e Retirada/Balcão, liberação mais antiga primeiro e próximos comandos explícitos. DELIVERED/PICKED_UP gravam completedAt e encerram o pedido. Novos timestamps e recibos têm migration aditiva, backup e comparação dos valores anteriores. Reutiliza PIN/presença, CAS, idempotência e realtime. v1 preservado, sem conversão automática. `npm run test:dispatch` e `npm run test:dispatch:browser` validam regras e ponta a ponta em dois tablets, incluindo 30 pedidos. [Contrato e limites](docs/PHASE_5B2_DISPATCH.md). Fechamento técnico da Fase 5 registrado nesta entrega; piloto físico pendente. Nenhuma integração externa ou Fase 6 iniciada.
+### Central operacional
+
+A rota `/kitchen` acompanha a operação em tempo real em modo somente leitura. Consulte [docs/KITCHEN_OPERATION_OVERVIEW.md](docs/KITCHEN_OPERATION_OVERVIEW.md) para os estados, fontes e limites da supervisão. A execução continua nos módulos de Montagem, Forno, Finalização e Despacho.

@@ -52,11 +52,12 @@ await withIsolatedApi(3358, async ({ apiOrigin }) => {
     await create('Retirada liberada', [...baked, 'START_FINISHING', 'CHECK_PIZZA', 'CONFIRM_PACKAGING', 'RELEASE_TO_DISPATCH'], 'PICKUP');
     const legacy = await page.request.post(`${apiOrigin}/orders`, { data: { customerName: 'Fila visual', type: 'DELIVERY', items: [{ name: 'Calabresa', size: 'Grande', ingredients: 'Calabresa, cebola', modifiers: [{ kind: 'REMOVED', name: 'cebola' }], notes: 'Conferir identificação' }] } });
     assert.equal(legacy.status(), 201);
-    for (const [width, height] of [[1024, 768], [1280, 800]]) {
+    for (const [width, height] of [[1024, 768], [1280, 800], [1366, 768]]) {
       await page.setViewportSize({ width, height });
-      for (const [route, ready] of [['assembly', '.ka-pizza-card'], ['oven', '.oven-card'], ['finishing', '.finishing-item'], ['dispatch', '.dispatch-order'], ['queue', '.order-card'], ['form', '.pizza-form']]) {
+      for (const [route, ready] of [['assembly', '.ka-pizza-card'], ['oven', '.oven-card'], ['finishing', '.finishing-item'], ['dispatch', '.dispatch-order'], ['queue', '.ko-orders'], ['form', '.pizza-form']]) {
         await page.goto(`${webOrigin}/${route === 'queue' ? 'kitchen' : route === 'form' ? 'orders/new' : `kitchen/${route}`}`);
         await page.locator(ready).first().waitFor(); await page.evaluate(() => scrollTo(0, 0));
+        if (route === 'queue') assert.equal(await page.locator('.ko-order button').count(), 0, 'Central: não deve oferecer comandos de produção');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} ${width}: overflow horizontal`);
         assert.ok(await page.evaluate(() => ![...document.querySelectorAll('.button')].some(button => button.getBoundingClientRect().height < 44)), `${route}: alvo touch insuficiente`);
         await page.screenshot({ path: resolve(shots, `${route}-${width}x${height}.png`) });
@@ -68,7 +69,7 @@ await withIsolatedApi(3358, async ({ apiOrigin }) => {
       }
     }
     assert.deepEqual(errors, []);
-    console.info(`PASS visual: Montagem, Forno, Finalização, Despacho, Fila e formulário v2, 1024×768/1280×800, overflow, touch e cabeçalho durante scroll. Capturas: ${shots}`);
+    console.info(`PASS visual: Montagem, Forno, Finalização, Despacho, Fila e formulário v2, 1024×768/1280×800/1366×768, overflow, touch e cabeçalho durante scroll. Capturas: ${shots}`);
   } finally {
     await browser.close();
     if (web.exitCode === null) { const exited = new Promise(done => web.once('exit', done)); web.kill(); await exited; }

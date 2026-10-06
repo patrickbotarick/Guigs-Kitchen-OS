@@ -15,6 +15,13 @@ export const operatorSessionSchema = z.object({
 }).strict();
 export const operatorAvailabilitySchema = z.object({ available: z.boolean() }).strict();
 export type OperationalSession = z.infer<typeof operatorSessionSchema>;
+export const operatorOverviewSchema = z.object({
+  operatorId: z.string().min(1), operatorName: z.string().min(1), role: z.enum(['ASSEMBLER', 'SUPERVISOR']),
+  sessionId: z.string().min(1).nullable(), workstationName: z.string().min(1).nullable(), available: z.boolean(),
+  presenceStatus: z.enum(['ONLINE', 'STALE', 'OFFLINE']), lastSeenAt: z.string().datetime().nullable(),
+}).strict();
+export const operatorOverviewListSchema = z.array(operatorOverviewSchema);
+export type OperatorOverview = z.infer<typeof operatorOverviewSchema>;
 export const operatorLoginResultSchema = z.object({ session: operatorSessionSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const supervisorRecoverySchema = z.object({
   command: z.enum(['SUPERVISOR_PAUSE', 'SUPERVISOR_RELEASE', 'SUPERVISOR_REASSIGN']),
