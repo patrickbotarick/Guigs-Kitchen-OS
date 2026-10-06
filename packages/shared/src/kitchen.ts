@@ -91,6 +91,7 @@ export const pizzaProductionSchema = z.object({
   state: pizzaProductionStateSchema, version: z.number().int().nonnegative(), queuedAt: instant,
   assemblyStartedAt: instant.nullable(), pausedAt: instant.nullable(), assemblyCompletedAt: instant.nullable(),
   ovenStartedAt: instant.nullable(), ovenExpectedEndAt: instant.nullable(), bakedAt: instant.nullable(),
+  ovenOperator: z.object({ operatorId: id, operatorName: id }).strict().nullable().optional(),
   finishingStartedAt: instant.nullable(), finishedAt: instant.nullable(), cancelledAt: instant.nullable(),
 }).strict().superRefine((production, ctx) => {
   if ((production.state === 'ASSEMBLY_PAUSED') !== (production.pausedAt !== null)) ctx.addIssue({ code: 'custom', message: 'pausedAt deve representar apenas a pausa atual.' });
@@ -184,7 +185,7 @@ export const ovenCommandTransitions = {
   ENTER_OVEN: { from: 'WAITING_OVEN', to: 'IN_OVEN' },
   REMOVE_FROM_OVEN: { from: 'IN_OVEN', to: 'BAKED' },
 } as const;
-export const ovenConfigurationSchema = z.object({ defaultOvenMinutes: z.number().positive().max(240), serverTime: z.string().datetime() }).strict();
+export const ovenConfigurationSchema = z.object({ defaultOvenMinutes: z.number().positive().max(240), ovenCapacity: z.number().int().positive().nullable(), ovenOccupancy: z.number().int().nonnegative(), serverTime: z.string().datetime() }).strict();
 
 const transitions: Record<PizzaProductionState, readonly PizzaProductionState[]> = {
   WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'CANCELLED'],

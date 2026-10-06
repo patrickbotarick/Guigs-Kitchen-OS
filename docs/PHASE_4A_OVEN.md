@@ -1,5 +1,7 @@
 # Fase 4A — módulo operacional de forno
 
+Fechada após revisão/validações no commit `23a2637` — `feat: add persistent oven workflow`. A configuração e a organização operacional foram evoluídas na [Fase 4B](PHASE_4B_OVEN_OPERATIONS.md); as seções abaixo descrevem o escopo original da 4A.
+
 ## Entrega e fechamento da Fase 3
 
 **Fase 3 — fluxo de montagem persistente, multioperador e realtime: STATUS CONCLUÍDA.** A 3D.2D foi revisada, validada e fechada no commit `5f76de4` (`feat: add operator presence and supervised recovery`) antes das alterações do forno. Bancos, backups, segredos e artefatos ficaram fora do commit; o package-lock.json não foi alterado.

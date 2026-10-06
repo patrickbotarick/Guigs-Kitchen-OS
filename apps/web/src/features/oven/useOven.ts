@@ -21,7 +21,7 @@ function savePending(value: Pending | null) { try { if (value) sessionStorage.se
 export function useOven(credentials: SessionCredentials, sessionId: string) {
   const [orders, setOrders] = useState<Order[]>([]), [loading, setLoading] = useState(true), [refreshing, setRefreshing] = useState(false), [error, setError] = useState('');
   const [connection, setConnection] = useState<AssemblyConnection>('RECONNECTING'), [revision, setRevision] = useState(0);
-  const [config, setConfig] = useState<{ defaultOvenMinutes: number; offset: number } | null>(null);
+  const [config, setConfig] = useState<{ defaultOvenMinutes: number; ovenCapacity: number | null; ovenOccupancy: number; offset: number } | null>(null);
   const reconciliation = useRef(new KitchenReconciliation<Order>(order => order)), socketConnected = useRef(false), validRead = useRef(false), readEpoch = useRef(0);
   const [pending, setPending] = useState(() => loadPending(sessionId)), pendingRef = useRef(pending), sending = useRef(false);
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState(pending ? 'Há um comando de forno pendente de confirmação nesta aba.' : '');
@@ -53,7 +53,7 @@ export function useOven(credentials: SessionCredentials, sessionId: string) {
         if (!response.ok) throw new Error(`Configuração de forno indisponível (HTTP ${response.status}).`);
         const currentConfig = ovenConfigurationSchema.parse(await response.json());
         if (!active || epoch !== readEpoch.current) return;
-        setOrders(reconciliation.current.reconcile(current, readRevision)); setConfig({ defaultOvenMinutes: currentConfig.defaultOvenMinutes, offset: Date.parse(currentConfig.serverTime) - (began + Date.now()) / 2 });
+        setOrders(reconciliation.current.reconcile(current, readRevision)); setConfig({ ...currentConfig, offset: Date.parse(currentConfig.serverTime) - (began + Date.now()) / 2 });
         validRead.current = true; setError(''); setConnection(socketConnected.current ? 'ONLINE' : 'OFFLINE');
       } catch (cause) {
         if (active) { validRead.current = false; setConnection('OFFLINE'); setError(`Não foi possível validar a fila do forno. ${cause instanceof Error && cause.name !== 'AbortError' ? cause.message : 'API indisponível.'} Dados anteriores preservados; ações bloqueadas.`); }
@@ -73,7 +73,7 @@ export function useOven(credentials: SessionCredentials, sessionId: string) {
     } catch (cause) {
       if (cause instanceof AssemblyApiError && cause.status === 409) {
         clear();
-        try { const current = await api.readOrder(value.orderId, controller.signal); if (alive.current) { setOrders(reconciliation.current.confirm(current)); setNotice('Esta pizza foi atualizada ou o comando está em conflito. Os dados foram recarregados.'); } }
+        try { const current = await api.readOrder(value.orderId, controller.signal); if (alive.current) { setOrders(reconciliation.current.confirm(current)); setNotice(`${cause.message} Os dados foram recarregados.`); } }
         catch { validRead.current = false; if (alive.current) { setConnection('OFFLINE'); setError('Conflito confirmado; use Atualizar para validar a fila.'); } }
       } else if (cause instanceof AssemblyApiError && [400, 401, 404].includes(cause.status)) { clear(); if (alive.current) setError(cause.message); }
       else if (alive.current) { validRead.current = false; setConnection('OFFLINE'); setError('O comando ainda não foi confirmado. Valide a conexão e use Confirmar comando novamente.'); }

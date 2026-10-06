@@ -7,6 +7,7 @@
 .oven-toolbar { margin: 16px 0 10px; }.oven-toolbar p { flex: 1; min-width: 220px; color: var(--color-text-muted); font-size: 13px; }
 .oven-hint { color: var(--color-text-muted); font-size: 13px; }.oven-alert, .oven-notice { padding: 12px; border-radius: var(--radius-sm); background: var(--color-warning-soft); }.oven-alert { color: var(--color-danger); }
 .oven-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+.oven-occupancy { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; font-size: 18px; font-weight: 700; padding: 14px; border-radius: var(--radius-sm); background: var(--color-surface); }.oven-full { color: var(--color-danger); background: var(--color-brand-soft); }
 .oven-column { min-width: 0; }.oven-column h2 { margin: 0; font-size: 22px; }.oven-column h2 span { margin-left: 8px; color: var(--color-text-muted); }.oven-sort { margin: 8px 0 16px; color: var(--color-text-muted); font-size: 13px; }
 .oven-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: start; }
 .oven-card { min-width: 0; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }

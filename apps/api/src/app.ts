@@ -32,7 +32,10 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/kitchen/oven/config', (_req, res) => res.set('Cache-Control', 'no-store').json(ovenConfiguration()));
+  app.get('/kitchen/oven/config', async (_req, res, next) => {
+    try { res.set('Cache-Control', 'no-store').json(commands && 'configuration' in commands && typeof commands.configuration === 'function' ? await commands.configuration() : { ...ovenConfiguration(), ovenOccupancy: 0 }); }
+    catch (error) { next(error); }
+  });
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
   if (operators) {
     app.post('/operators/session/heartbeat', async (req, res, next) => {

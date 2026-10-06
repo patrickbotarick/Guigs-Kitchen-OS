@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,6 +15,11 @@ import { ovenConfiguration } from './oven-config.js';
 const name = `test-oven-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
 const creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma), notifications: KitchenNotification[] = [];
+const originalCapacity = process.env.OVEN_CAPACITY, originalMinutes = process.env.OVEN_DEFAULT_MINUTES;
+afterEach(() => {
+  if (originalCapacity === undefined) delete process.env.OVEN_CAPACITY; else process.env.OVEN_CAPACITY = originalCapacity;
+  if (originalMinutes === undefined) delete process.env.OVEN_DEFAULT_MINUTES; else process.env.OVEN_DEFAULT_MINUTES = originalMinutes;
+});
 let sessions: OperatorSessionService, app: ReturnType<typeof createApp>;
 async function login(index: number, available = false) {
   const deviceKey = randomUUID(), login = await sessions.signIn({ pin: String(8100 + index), workstationDeviceKey: deviceKey }, randomUUID()), auth = { token: login.token, deviceKey };
@@ -47,6 +52,62 @@ beforeEach(async () => {
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
 
 describe('forno operacional', () => {
+  it('sem capacidade configurada mantém entrada livre e informa ocupação por pizzas', async () => {
+    delete process.env.OVEN_CAPACITY; const { order, a } = await setup(3);
+    for (let index = 0; index < 3; index++) await commands.execute(order.id, order.items[index].id, input(order, 'ENTER_OVEN', index), a.auth);
+    expect((await request(app).get('/kitchen/oven/config')).body).toMatchObject({ ovenCapacity: null, ovenOccupancy: 3 });
+  });
+  it('capacidade 3: três entradas, duas aguardam; retirada abre vaga e outra entrada fecha', async () => {
+    process.env.OVEN_CAPACITY = '3'; const { order, a, b } = await setup(5);
+    expect((await request(app).get('/kitchen/oven/config')).body).toMatchObject({ ovenCapacity: 3, ovenOccupancy: 0 });
+    let current = order;
+    for (let index = 0; index < 3; index++) current = (await commands.execute(order.id, order.items[index].id, input(order, 'ENTER_OVEN', index), a.auth)).order;
+    const blocked = await request(app).post(endpoint(order, 3)).set(b.headers).send(input(order, 'ENTER_OVEN', 3)); expect(blocked.status).toBe(409); expect(blocked.body.error).toContain('Forno cheio');
+    expect(await prisma.pizzaItem.count({ where: { state: 'IN_OVEN' } })).toBe(3); expect(await prisma.pizzaItem.count({ where: { state: 'WAITING_OVEN' } })).toBe(2);
+    await commands.execute(order.id, order.items[0].id, input(current, 'REMOVE_FROM_OVEN'), b.auth);
+    expect((await commands.configuration()).ovenOccupancy).toBe(2);
+    await commands.execute(order.id, order.items[3].id, input(order, 'ENTER_OVEN', 3), b.auth); expect((await commands.configuration()).ovenOccupancy).toBe(3);
+  });
+  it('dois clientes e pedidos distintos disputam última vaga global: somente um commit', async () => {
+    process.env.OVEN_CAPACITY = '1'; const first = await setup(), second = await setup();
+    const otherPrisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } });
+    try {
+      const results = await Promise.allSettled([commands.execute(first.order.id, first.order.items[0].id, input(first.order, 'ENTER_OVEN'), first.a.auth), new PizzaCommandService(otherPrisma).execute(second.order.id, second.order.items[0].id, input(second.order, 'ENTER_OVEN'), second.b.auth)]);
+      expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { message: expect.stringContaining('Forno cheio') } });
+      expect(await prisma.pizzaItem.count({ where: { state: 'IN_OVEN' } })).toBe(1); expect(await prisma.pizzaProductionHistory.count({ where: { eventType: 'ENTER_OVEN' } })).toBe(1);
+    } finally { await otherPrisma.$disconnect(); }
+  });
+  it('replay na última vaga e após reduzir capacidade não consome outra vaga', async () => {
+    process.env.OVEN_CAPACITY = '1'; const { order, a } = await setup(2), payload = input(order, 'ENTER_OVEN');
+    const initial = await commands.execute(order.id, order.items[0].id, payload, a.auth);
+    expect((await commands.execute(order.id, order.items[0].id, payload, a.auth)).replayed).toBe(true);
+    expect(await prisma.pizzaProductionHistory.count({ where: { eventType: 'ENTER_OVEN' } })).toBe(1); expect((await commands.configuration()).ovenOccupancy).toBe(1);
+    expect((await request(app).post(endpoint(order, 1)).set(a.headers).send(input(order, 'ENTER_OVEN', 1))).status).toBe(409);
+    await commands.execute(order.id, order.items[0].id, input(initial.order, 'REMOVE_FROM_OVEN'), a.auth);
+    expect((await commands.configuration()).ovenOccupancy).toBe(0);
+  });
+  it('mudança explícita de tempo/capacidade vale para próxima entrada e mantém previsão histórica', async () => {
+    process.env.OVEN_CAPACITY = '3'; process.env.OVEN_DEFAULT_MINUTES = '9'; const { order, a } = await setup(2);
+    const first = (await commands.execute(order.id, order.items[0].id, input(order, 'ENTER_OVEN'), a.auth)).order;
+    process.env.OVEN_DEFAULT_MINUTES = '4'; process.env.OVEN_CAPACITY = '1';
+    expect((await commands.configuration())).toMatchObject({ defaultOvenMinutes: 4, ovenCapacity: 1, ovenOccupancy: 1 });
+    expect((await request(app).post(endpoint(order, 1)).set(a.headers).send(input(order, 'ENTER_OVEN', 1))).status).toBe(409);
+    process.env.OVEN_CAPACITY = '2'; const result = (await commands.execute(order.id, order.items[1].id, input(order, 'ENTER_OVEN', 1), a.auth)).order;
+    for (const [index, minutes] of [[0, 9], [1, 4]]) { const pizza = result.items[index]; if (pizza.kind !== 'PIZZA') throw new Error('Pizza esperada'); expect(Date.parse(pizza.production.ovenExpectedEndAt!) - Date.parse(pizza.production.ovenStartedAt!)).toBe(minutes * 60000); }
+    expect(result.items[0]).toEqual(first.items[0]);
+  });
+  it('rollback com capacidade não consome vaga; retry do mesmo ID consegue entrar', async () => {
+    process.env.OVEN_CAPACITY = '1'; const { order, a } = await setup(), payload = input(order, 'ENTER_OVEN');
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_capacity BEFORE INSERT ON PizzaCommandReceipt BEGIN SELECT RAISE(ABORT, 'capacity rollback'); END`);
+    try { expect((await request(app).post(endpoint(order)).set(a.headers).send(payload)).status).toBe(500); expect((await commands.configuration()).ovenOccupancy).toBe(0); }
+    finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_capacity'); }
+    expect((await request(app).post(endpoint(order)).set(a.headers).send(payload)).status).toBe(200); expect((await commands.configuration()).ovenOccupancy).toBe(1);
+  });
+  it('capacidade inválida não é interpretada como ausência de limite', () => {
+    for (const value of ['0', '-1', '1.5', 'abc', '9007199254740992']) { process.env.OVEN_CAPACITY = value; expect(() => ovenConfiguration()).toThrow('OVEN_CAPACITY'); }
+    process.env.OVEN_CAPACITY = '  '; expect(ovenConfiguration().ovenCapacity).toBeNull();
+  });
   it('SEND_TO_OVEN torna pizza legível na fila v2 com snapshot e montador preservados', async () => {
     const { order, assembler } = await setup(3);
     const response = await request(app).get('/orders/v2'); expect(response.status).toBe(200);
@@ -58,6 +119,7 @@ describe('forno operacional', () => {
     const { order, a, assembler } = await setup(), payload = input(order, 'ENTER_OVEN'), before = Date.now();
     const response = await request(app).post(endpoint(order)).set(a.headers).send(payload); expect(response.status).toBe(200);
     const pizza = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: order.items[0].id } });
+    expect(response.body.order.items[0].production.ovenOperator).toEqual({ operatorId: a.session.operatorId, operatorName: 'Forno operador 1' });
     expect(pizza.state).toBe('IN_OVEN'); expect(pizza.version).toBe(4); expect(pizza.ovenStartedAt!.getTime()).toBeGreaterThanOrEqual(before); expect(pizza.ovenStartedAt!.getTime()).toBeLessThanOrEqual(Date.now()); expect(pizza.ovenExpectedEndAt!.getTime() - pizza.ovenStartedAt!.getTime()).toBe(420000);
     expect(pizza.assignedOperatorId).toBe(assembler.session.operatorId); expect(pizza.bakedAt).toBeNull(); expect(response.body.order.status).toBe('OVEN');
     expect(await prisma.pizzaProductionHistory.findUnique({ where: { commandId: payload.clientCommandId } })).toMatchObject({ eventType: 'ENTER_OVEN', fromState: 'WAITING_OVEN', toState: 'IN_OVEN', operatorId: a.session.operatorId, operatorSessionId: a.session.sessionId, workstationId: a.session.workstationId, itemVersion: 4 });

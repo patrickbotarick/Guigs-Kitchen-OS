@@ -11,6 +11,7 @@ import { loginPin, operatorFixtures } from './helpers/operator-fixtures.mjs';
 const executablePath = [process.env.BROWSER_PATH, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'].filter(Boolean).find(existsSync);
 assert.ok(executablePath, 'Edge/Chrome necessário');
 const webOrigin = 'http://127.0.0.1:5183';
+const serverEnv = { OVEN_DEFAULT_MINUTES: '0.1', OVEN_CAPACITY: '' };
 async function until(check, message, timeout = 15000) { const end = Date.now() + timeout; while (Date.now() < end) { if (await check()) return; await new Promise(done => setTimeout(done, 100)); } throw new Error(message); }
 const card = (page, id) => page.locator(`[data-pizza-id="${id}"]`);
 const headers = page => page.evaluate(() => ({ Authorization: `Bearer ${localStorage.getItem('guigs-operator-session-token')}`, 'X-Workstation-Device-Key': localStorage.getItem('guigs-workstation-device-key') }));
@@ -104,6 +105,43 @@ await withIsolatedApi(3352, async ({ prisma, apiOrigin, restart }) => {
     stress = await (await form.request.get(`${apiOrigin}/orders/v2/${stress.id}`)).json(); assert.equal(stress.items.filter(item => item.production.state === 'IN_OVEN').length, 9); assert.equal(stress.items.filter(item => item.production.state === 'WAITING_OVEN').length, 20); assert.equal(stress.items.filter(item => item.production.state === 'BAKED').length, 1);
     await a.screenshot({ path: resolve(shots, 'oven-stress-tablet.png'), fullPage: true });
     await a.setViewportSize({ width: 768, height: 1024 }); assert.ok(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Tablet retrato com scroll horizontal'); assert.ok(await a.locator('.oven-card > button').first().evaluate(button => button.getBoundingClientRect().height >= 44), 'Alvo touch insuficiente'); await a.screenshot({ path: resolve(shots, 'oven-portrait-tablet.png'), fullPage: true });
+    // Phase 4B: same two operational tablets, capacity changed only in this isolated API.
+    for (const pizza of stress.items.filter(item => item.production.state === 'IN_OVEN')) {
+      const current = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizza.id } });
+      const response = await a.request.post(`${apiOrigin}/orders/v2/${stress.id}/pizzas/${pizza.id}/commands`, { headers: aHeaders, data: { command: 'REMOVE_FROM_OVEN', expectedState: current.state, expectedVersion: current.version, clientCommandId: randomUUID() } }); assert.equal(response.status(), 200);
+    }
+    serverEnv.OVEN_CAPACITY = '3'; serverEnv.OVEN_DEFAULT_MINUTES = '0.2'; await restart();
+    const fiveResponse = await form.request.post(`${apiOrigin}/orders/v2`, { data: { clientRequestId: randomUUID(), customerName: 'Capacidade 3 de 5', customerPhone: '', notes: '', channel: 'COUNTER', fulfillmentType: 'PICKUP', extras: [], pizzas: Array.from({ length: 5 }, () => ({ size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null })) } }); assert.equal(fiveResponse.status(), 201); const five = await fiveResponse.json();
+    for (const pizza of five.items) for (const command of ['START_ASSEMBLY', 'SEND_TO_OVEN']) {
+      const current = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: pizza.id } });
+      const response = await form.request.post(`${apiOrigin}/orders/v2/${five.id}/pizzas/${pizza.id}/commands`, { headers: assemblyHeaders, data: { command, expectedState: current.state, expectedVersion: current.version, clientCommandId: randomUUID() } }); assert.equal(response.status(), 200);
+    }
+    await a.setViewportSize({ width: 1024, height: 768 }); await b.setViewportSize({ width: 1280, height: 800 });
+    for (const page of [a, b]) await until(async () => /Forno 0 \/ 3/.test(await page.getByLabel('Ocupação do forno', { exact: true }).innerText()), 'Capacidade após restart não refletiu');
+    await act(a, five.items[0].id, 'Colocar no forno'); await insideBoth(five.items[0].id);
+    await act(b, five.items[1].id, 'Colocar no forno'); await insideBoth(five.items[1].id);
+    for (const page of [a, b]) await until(async () => /Forno 2 \/ 3/.test(await page.getByLabel('Ocupação do forno', { exact: true }).innerText()), 'Ocupação 2/3 ausente');
+    for (const [page, pizza] of [[a, five.items[2]], [b, five.items[3]]]) await until(() => card(page, pizza.id).getByRole('button', { name: 'Colocar no forno', exact: true }).isEnabled(), 'Última vaga não liberada');
+    const capacityPosts = ovenPosts.length;
+    await Promise.all([[a, five.items[2]], [b, five.items[3]]].map(([page, pizza]) => page.evaluate(id => document.querySelector(`[data-pizza-id="${id}"] button`).click(), pizza.id)));
+    await until(() => ovenPosts.slice(capacityPosts).length >= 2, 'Disputa da última vaga não chegou'); assert.deepEqual(ovenPosts.slice(capacityPosts, capacityPosts + 2).map(post => post.status).sort(), [200, 409]);
+    let fiveStored = await prisma.pizzaItem.findMany({ where: { orderId: five.id } }); assert.equal(fiveStored.filter(pizza => pizza.state === 'IN_OVEN').length, 3); assert.equal(fiveStored.filter(pizza => pizza.state === 'WAITING_OVEN').length, 2);
+    for (const page of [a, b]) { await until(async () => /Forno 3 \/ 3/.test(await page.getByLabel('Ocupação do forno', { exact: true }).innerText()), 'Forno 3/3 não propagou'); await page.getByText('Forno cheio', { exact: true }).waitFor(); for (const pizza of fiveStored.filter(pizza => pizza.state === 'WAITING_OVEN')) assert.equal(await card(page, pizza.id).getByRole('button', { name: 'Colocar no forno', exact: true }).isDisabled(), true); }
+    const waitingId = fiveStored.find(pizza => pizza.state === 'WAITING_OVEN').id;
+    await act(a, five.items[0].id, 'Retirar do forno');
+    for (const page of [a, b]) await until(async () => /Forno 2 \/ 3/.test(await page.getByLabel('Ocupação do forno', { exact: true }).innerText()), 'Retirada não abriu vaga');
+    await act(b, waitingId, 'Colocar no forno'); await insideBoth(waitingId);
+    await b.reload(); await b.getByLabel('Conexão Forno', { exact: true }).getByText('Online', { exact: true }).waitFor(); await insideBoth(waitingId);
+    fiveStored = await prisma.pizzaItem.findMany({ where: { orderId: five.id } }); assert.equal(fiveStored.filter(pizza => pizza.state === 'IN_OVEN').length, 3);
+    for (const [page, label] of [[a, '1024x768'], [b, '1280x800']]) { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${label}: scroll horizontal`); assert.ok(await card(page, waitingId).getByRole('button', { name: 'Retirar do forno', exact: true }).evaluate(button => button.getBoundingClientRect().height >= 44)); await page.screenshot({ path: resolve(shots, `oven-capacity-${label}.png`), fullPage: true }); }
+    const historical = fiveStored.find(pizza => pizza.id === waitingId).ovenExpectedEndAt.getTime();
+    serverEnv.OVEN_CAPACITY = '2'; serverEnv.OVEN_DEFAULT_MINUTES = '0.3'; await restart();
+    for (const page of [a, b]) await until(async () => /Forno 3 \/ 2/.test(await page.getByLabel('Ocupação do forno', { exact: true }).innerText()), 'Redução de capacidade não refletiu');
+    assert.equal((await prisma.pizzaItem.findUniqueOrThrow({ where: { id: waitingId } })).ovenExpectedEndAt.getTime(), historical);
+    serverEnv.OVEN_CAPACITY = '4'; await restart(); const lastWaiting = fiveStored.find(pizza => pizza.state === 'WAITING_OVEN').id;
+    await act(a, lastWaiting, 'Colocar no forno'); await insideBoth(lastWaiting);
+    const newTime = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: lastWaiting } }); assert.equal(newTime.ovenExpectedEndAt - newTime.ovenStartedAt, 18000);
+    console.info('Fase 4B PASS: capacidade 3/3 em cinco pizzas, última vaga disputada por pizzas diferentes (200/409), retirada abre vaga, refresh, configuração 3→2→4 sem reescrever previsão, tablets 1024×768 e 1280×800.');
     assert.deepEqual(errors, []); console.info('Stress básico: 30 pizzas, duas entradas disputadas (200/409), 10 entradas em lotes, várias no forno, perda de rede/GET, API reiniciada, tablets paisagem/retrato e timestamps persistidos aprovados.');
   } finally { await browser.close(); if (web.exitCode === null) { const exited = new Promise(done => web.once('exit', done)); web.kill(); await exited; } }
-}, { webOrigin, operatorFixtures: true, serverEnv: { OVEN_DEFAULT_MINUTES: '0.1' } });
+}, { webOrigin, operatorFixtures: true, serverEnv });

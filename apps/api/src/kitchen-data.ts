@@ -7,7 +7,7 @@ import { toOrderView } from './orders.js';
 export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, id: string): Promise<CompatibleOrder | null> {
   const order = await prisma.order.findUnique({ where: { id }, include: {
     items: { include: { modifiers: true } },
-    pizzaItems: { include: { assignedOperator: true, halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
+    pizzaItems: { include: { assignedOperator: true, history: { where: { eventType: 'ENTER_OVEN' }, orderBy: { itemVersion: 'desc' }, take: 1, include: { operator: true } }, halves: { orderBy: { position: 'asc' }, include: { modifiers: true } } } }, extraItems: true,
   } });
   if (!order) return null;
   if (order.schemaVersion === 1) return readOrderData(toOrderView(order));
@@ -29,6 +29,7 @@ export async function loadCompatibleOrder(prisma: Pick<PrismaClient, 'order'>, i
         snapshot,
         production: { state: pizza.state, version: pizza.version, queuedAt: pizza.queuedAt.toISOString(),
           assemblyStartedAt: iso(pizza.assemblyStartedAt), pausedAt: iso(pizza.pausedAt), assemblyCompletedAt: iso(pizza.assemblyCompletedAt), ovenStartedAt: iso(pizza.ovenStartedAt),
+          ...(pizza.history[0]?.operator ? { ovenOperator: { operatorId: pizza.history[0].operator.id, operatorName: pizza.history[0].operator.name } } : {}),
           ovenExpectedEndAt: iso(pizza.ovenExpectedEndAt), bakedAt: iso(pizza.bakedAt), finishingStartedAt: iso(pizza.finishingStartedAt), finishedAt: iso(pizza.finishedAt), cancelledAt: iso(pizza.cancelledAt) } };
     }), ...order.extraItems.map(extra => ({ id: extra.id, orderId: order.id, position: extra.position, notes: extra.notes, kind: 'EXTRA', extraCatalogId: extra.extraCatalogId,
       catalogRevisionId: extra.catalogRevisionId, snapshot: { name: extra.nameSnapshot }, quantity: extra.quantity, state: extra.state, checkedQuantity: extra.checkedQuantity,

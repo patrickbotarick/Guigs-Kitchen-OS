@@ -12,6 +12,11 @@ function pizza(id: string, state: PizzaItem['production']['state'], position = 0
 }
 function order(items: PizzaItem[], version = 1): Order { return { id: 'order', number: 1, items, version } as Order; }
 describe('fila e timer do forno', () => {
+  it('ordena dentro do forno por previsão de saída independente da entrada e do pedido', () => {
+    const older = pizza('older', 'IN_OVEN'); older.production.ovenExpectedEndAt = '2026-10-06T12:15:00.000Z';
+    const newer = pizza('newer', 'IN_OVEN'); newer.production.ovenStartedAt = '2026-10-06T12:01:00.000Z'; newer.production.ovenExpectedEndAt = '2026-10-06T12:05:00.000Z';
+    expect(ovenQueues([order([older, newer])]).inside.map(entry => entry.pizza.id)).toEqual(['newer', 'older']);
+  });
   it('separa WAITING_OVEN e IN_OVEN por pizza, ignorando montagem/BAKED/extras', () => {
     const queues = ovenQueues([order([pizza('waiting', 'WAITING_OVEN'), pizza('inside', 'IN_OVEN'), pizza('assembling', 'ASSEMBLING'), pizza('baked', 'BAKED')])]);
     expect(queues.waiting.map(entry => entry.pizza.id)).toEqual(['waiting']); expect(queues.inside.map(entry => entry.pizza.id)).toEqual(['inside']);

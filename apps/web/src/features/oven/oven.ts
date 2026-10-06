@@ -4,7 +4,7 @@ export type OvenEntry = { order: Order; pizza: PizzaItem };
 export function ovenQueues(orders: Order[]) {
   const entries = orders.flatMap(order => order.items.flatMap(pizza => pizza.kind === 'PIZZA' ? [{ order, pizza }] : []));
   const waiting = entries.filter(({ pizza }) => pizza.production.state === 'WAITING_OVEN').sort((a, b) => Date.parse(a.pizza.production.assemblyCompletedAt ?? a.pizza.production.queuedAt) - Date.parse(b.pizza.production.assemblyCompletedAt ?? b.pizza.production.queuedAt) || a.order.number - b.order.number || a.pizza.position - b.pizza.position);
-  const inside = entries.filter(({ pizza }) => pizza.production.state === 'IN_OVEN').sort((a, b) => Date.parse(a.pizza.production.ovenStartedAt!) - Date.parse(b.pizza.production.ovenStartedAt!) || a.order.number - b.order.number || a.pizza.position - b.pizza.position);
+  const inside = entries.filter(({ pizza }) => pizza.production.state === 'IN_OVEN').sort((a, b) => Date.parse(a.pizza.production.ovenExpectedEndAt ?? a.pizza.production.ovenStartedAt!) - Date.parse(b.pizza.production.ovenExpectedEndAt ?? b.pizza.production.ovenStartedAt!) || Date.parse(a.pizza.production.ovenStartedAt!) - Date.parse(b.pizza.production.ovenStartedAt!) || a.order.number - b.order.number || a.pizza.position - b.pizza.position);
   return { waiting, inside };
 }
 export function ovenFlavor(pizza: PizzaItem) { return pizzaName({ ...pizza.recipe, snapshot: pizza.snapshot }); }

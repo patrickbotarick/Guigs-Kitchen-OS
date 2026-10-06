@@ -9,8 +9,15 @@ export class PizzaCommandConflictError extends Error {}
 export class PizzaCommandNotFoundError extends Error {}
 class RetryAggregationError extends Error {}
 export class PizzaCommandService {
-  constructor(private readonly prisma: PrismaClient, private readonly ovenMinutes = ovenConfiguration().defaultOvenMinutes) {
-    if (!Number.isFinite(ovenMinutes) || ovenMinutes <= 0 || ovenMinutes > 240) throw new Error('Tempo de forno inválido.');
+  constructor(private readonly prisma: PrismaClient, private readonly ovenMinutes?: number) {
+    ovenConfiguration();
+    if (ovenMinutes !== undefined && (!Number.isFinite(ovenMinutes) || ovenMinutes <= 0 || ovenMinutes > 240)) throw new Error('Tempo de forno inválido.');
+  }
+
+  async configuration() {
+    const configuration = ovenConfiguration();
+    const ovenOccupancy = await this.prisma.pizzaItem.count({ where: { state: 'IN_OVEN' } });
+    return { ...configuration, ovenOccupancy };
   }
 
   async execute(orderId: string, pizzaId: string, payload: PizzaCommandInput, credentials?: SessionCredentials): Promise<PizzaCommandResult> {
@@ -56,6 +63,13 @@ export class PizzaCommandService {
             await tx.pizzaCommandReceipt.create({ data: { clientCommandId, payloadHash: hash, orderId, pizzaId, operatorSessionId: actor.sessionId, responseSnapshot: result as unknown as Prisma.InputJsonValue } });
             return result;
           }
+          const oven = ovenConfiguration();
+          if (input.command === 'ENTER_OVEN' && oven.ovenCapacity !== null) {
+            // Count and CAS write share the SQLite transaction. A competing writer
+            // cannot commit against this stale snapshot: retry rechecks capacity.
+            const occupied = await tx.pizzaItem.count({ where: { state: 'IN_OVEN' } });
+            if (occupied >= oven.ovenCapacity) throw new PizzaCommandConflictError('Forno cheio. Aguarde uma retirada antes de colocar outra pizza.');
+          }
           const now = new Date();
           const claiming = !pizza.assignedOperatorId && (input.command === 'CLAIM_PIZZA' || input.command === 'START_ASSEMBLY');
           const releasing = input.command === 'RELEASE_PIZZA';
@@ -66,7 +80,7 @@ export class PizzaCommandService {
             ...(input.command === 'START_ASSEMBLY' ? { assemblyStartedAt: now } : {}),
             ...(assignmentCommand || ovenCommand ? {} : input.command === 'PAUSE_ASSEMBLY' ? { pausedAt: now } : { pausedAt: null }),
             ...(input.command === 'SEND_TO_OVEN' ? { assemblyCompletedAt: now } : {}),
-            ...(input.command === 'ENTER_OVEN' ? { ovenStartedAt: now, ovenExpectedEndAt: new Date(now.getTime() + this.ovenMinutes * 60000) } : {}),
+            ...(input.command === 'ENTER_OVEN' ? { ovenStartedAt: now, ovenExpectedEndAt: new Date(now.getTime() + (this.ovenMinutes ?? oven.defaultOvenMinutes) * 60000) } : {}),
             ...(input.command === 'REMOVE_FROM_OVEN' ? { bakedAt: now } : {}),
           } });
           if (changed.count !== 1) throw new PizzaCommandConflictError('Esta pizza foi atualizada em outro dispositivo.');

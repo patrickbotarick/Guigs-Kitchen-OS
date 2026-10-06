@@ -370,3 +370,7 @@ A criação estruturada, catálogo compartilhado, idempotência transacional, sn
 - Atual: Fase 4A, `/kitchen/oven`, fila compartilhada WAITING_OVEN → IN_OVEN → BAKED, comandos transacionais/CAS/idempotência, autoria, timer orientativo por timestamps e realtime. Reutiliza schema existente, sem migration ou capacidade inventada. [Contrato e validação](PHASE_4A_OVEN.md). Entrega local para revisão/commit próprio.
 - Próximo: piloto físico de montagem → forno, confirmar tempo operacional/capacidade com a loja, fechar revisão/commit 4A e definir escopo da 4B. Validação operacional pendente não impede tecnicamente evolução do módulo.
 - Fases próprias posteriores: finalização/conferência/extras/embalagem/despacho; estoque/ficha técnica e métricas/administração. Não iniciadas nesta entrega; BAKED prepara somente o handoff.
+
+### Evolução 4B — operação de forno
+
+4A fechada em `23a2637`. Etapa atual: capacidade opcional por configuração, ocupação transacional global por pizza, proteção da última vaga entre pedidos/tablets, prioridade pela previsão de saída, autoria de entrada e referência de tempo preservada historicamente. Sem migration ou múltiplos fornos. [Contrato e validação 4B](PHASE_4B_OVEN_OPERATIONS.md). Próximo ciclo: revisão/commit 4B, piloto físico e definição do contrato de Finalização (Fase 5), que não foi implementada.
