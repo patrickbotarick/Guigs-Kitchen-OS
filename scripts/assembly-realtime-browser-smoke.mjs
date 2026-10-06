@@ -116,6 +116,9 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     // Wait for the mandatory GETs, without manual refresh or 120-second fallback.
     await pageA.waitForFunction(() => !document.querySelector('.ka-queue-footer button')?.disabled);
     await pageB.waitForFunction(() => !document.querySelector('.ka-queue-footer button')?.disabled);
+    // Socket connect can render Online before the coalesced GET starts (100 ms).
+    const readDeadline = Date.now() + 5000;
+    while ((readsA <= beforeRestartA || readsB <= beforeRestartB) && Date.now() < readDeadline) await new Promise(done => setTimeout(done, 50));
     assert.ok(readsA > beforeRestartA && readsB > beforeRestartB, 'Ambos devem ressincronizar após reinício');
     await action(pageA, pageB, 'Pausar', 'Retomar');
     console.info('API reiniciada no mesmo SQLite: ambos reconectam, consultam estado persistido e retomam realtime.');

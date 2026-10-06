@@ -32,6 +32,7 @@ export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, o
   return <aside className="ka-queue" aria-labelledby="ka-queue-title">
     <div className="ka-queue-heading"><h2 id="ka-queue-title">Fila de Pedidos</h2><button className="ka-sort" type="button" aria-label={`Ordenar fila: ${sortDirection === 'ASC' ? 'mais antigo primeiro' : 'mais recente primeiro'}`} aria-pressed={sortDirection === 'DESC'} onClick={onToggleSort}><AssemblyIcon name="sort" /></button></div>
     <p className="ka-sort-label">{sortDirection === 'ASC' ? 'Mais antigo primeiro' : 'Mais recente primeiro'}</p>
+    {mode === 'API' && <Link to="/kitchen/oven">Forno</Link>}
     {mode === 'API' && <span className={`ka-connection ka-connection-${connection.toLowerCase()}`} role="status" aria-label="Conexão Assembly">{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[connection]}</span>}
     {operatorSession && <div className="ka-operator-identity"><span aria-label="Identidade operacional">{operatorSession.operatorName} • {operatorSession.workstationName} • {connection === 'OFFLINE' ? 'Sem conexão' : ({ ONLINE: 'Online', STALE: 'Presença atrasada', OFFLINE: 'Offline' })[operatorSession.presenceStatus]}</span>
       <button type="button" aria-label="Receber novas pizzas neste tablet" aria-pressed={operatorSession.available} disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => void setAvailability(!operatorSession.available)}>{operatorSession.available ? 'Recebendo neste tablet' : 'Suspenso neste tablet'}</button>

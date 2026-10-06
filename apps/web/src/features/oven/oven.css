@@ -1,0 +1,20 @@
+.oven-page { padding: 22px; max-width: 1600px; margin: auto; }
+.oven-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--color-border); padding-bottom: 16px; }
+.oven-header h1 { margin: 0; font-size: 32px; letter-spacing: -.04em; }
+.oven-header p { margin: 8px 0 0; font-size: 15px; }
+.oven-header-actions, .oven-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.oven-connection { font-size: 14px; font-weight: 700; }.oven-connection-online { color: var(--color-success); }.oven-connection-offline { color: var(--color-danger); }.oven-connection-reconnecting { color: var(--color-warning); }
+.oven-toolbar { margin: 16px 0 10px; }.oven-toolbar p { flex: 1; min-width: 220px; color: var(--color-text-muted); font-size: 13px; }
+.oven-hint { color: var(--color-text-muted); font-size: 13px; }.oven-alert, .oven-notice { padding: 12px; border-radius: var(--radius-sm); background: var(--color-warning-soft); }.oven-alert { color: var(--color-danger); }
+.oven-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+.oven-column { min-width: 0; }.oven-column h2 { margin: 0; font-size: 22px; }.oven-column h2 span { margin-left: 8px; color: var(--color-text-muted); }.oven-sort { margin: 8px 0 16px; color: var(--color-text-muted); font-size: 13px; }
+.oven-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: start; }
+.oven-card { min-width: 0; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.oven-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.oven-card-heading strong { color: var(--color-brand-primary); font-size: 23px; }.oven-card-heading strong span { display: block; color: var(--color-text-muted); font-size: 13px; margin-top: 3px; }
+.oven-size { border-radius: 20px; padding: 7px 12px; background: var(--color-brand-soft); font-size: 14px; font-weight: 700; }
+.oven-card h3 { margin: 18px 0 6px; font-size: 21px; overflow-wrap: anywhere; }.oven-composition, .oven-assembler { font-size: 13px; color: var(--color-text-muted); }.oven-composition { margin: 0; }.oven-assembler { margin: 14px 0; }.oven-notes { font-size: 14px; overflow-wrap: anywhere; padding: 10px; background: var(--color-surface-elevated); border-radius: var(--radius-sm); }
+.oven-wait { margin: 20px 0; }.oven-wait strong { margin-left: 8px; font-size: 24px; }.oven-card > button { width: 100%; min-height: 52px; }
+.oven-clock { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }.oven-clock > strong { font-size: 38px; font-variant-numeric: tabular-nums; }.oven-clock > span { font-size: 13px; }.oven-clock progress { width: 100%; height: 8px; accent-color: var(--color-success); }
+.oven-time-near { border-color: var(--color-warning); }.oven-time-near progress { accent-color: var(--color-warning); }.oven-time-reached, .oven-time-over { border-color: var(--color-danger); background: var(--color-brand-soft); }.oven-time-reached progress, .oven-time-over progress { accent-color: var(--color-danger); }.oven-empty { color: var(--color-text-muted); padding: 24px; background: var(--color-surface); border-radius: var(--radius-md); }
+@media (max-width: 850px) { .oven-header { align-items: flex-start; flex-direction: column; }.oven-page { padding: 16px; } }
+@media (max-width: 640px) { .oven-columns { grid-template-columns: 1fr; }.oven-header-actions { width: 100%; }.oven-toolbar { align-items: stretch; }.oven-toolbar button { flex: 1; } }

@@ -3,10 +3,11 @@ import { mapAssemblyOrder } from './api';
 import type { AssemblyOrder } from './types';
 
 export type AssemblyConnection = 'ONLINE' | 'RECONNECTING' | 'OFFLINE';
-type Entry = { version: number; order: AssemblyOrder | null; revision: number };
+type Entry<T> = { version: number; order: T | null; revision: number };
 // Includes tombstones: an old response must not resurrect an order that left assembly.
-export class AssemblyReconciliation {
-  private entries = new Map<string, Entry>();
+export class KitchenReconciliation<T> {
+  constructor(private readonly mapOrder: (order: Order) => T | null) {}
+  private entries = new Map<string, Entry<T>>();
   private announced = new Map<string, number>();
   private eventIds = new Set<string>();
   private revision = 0;
@@ -14,7 +15,7 @@ export class AssemblyReconciliation {
   orders() { return [...this.entries.values()].flatMap(entry => entry.order ? [entry.order] : []); }
   confirm(order: Order) {
     const current = this.entries.get(order.id);
-    if (!current || order.version > current.version) this.entries.set(order.id, { version: order.version, order: mapAssemblyOrder(order), revision: ++this.revision });
+    if (!current || order.version > current.version) this.entries.set(order.id, { version: order.version, order: this.mapOrder(order), revision: ++this.revision });
     return this.orders();
   }
   reconcile(orders: Order[], readRevision: number) {
@@ -45,4 +46,7 @@ export class AssemblyReconciliation {
     if (value.version <= known) return false;
     this.announced.set(value.id, value.version); return true;
   }
+}
+export class AssemblyReconciliation extends KitchenReconciliation<AssemblyOrder> {
+  constructor() { super(mapAssemblyOrder); }
 }

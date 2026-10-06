@@ -188,9 +188,9 @@ describe('comandos persistentes por pizza', () => {
     for (const path of [`/orders/v2/${a.id}/pizzas/${b.items[0].id}/commands`, `/orders/v2/caaaaaaaaaaaaaaaaaaaaaaaa/pizzas/${a.items[0].id}/commands`, `/orders/v2/${a.id}/pizzas/caaaaaaaaaaaaaaaaaaaaaaaa/commands`]) expect((await request(app).post(path).set(authHeaders).send(payload)).status).toBe(404);
     expect(await take(a.id)).toEqual(before);
   });
-  it('não aceita comandos de forno, timestamps do cliente ou UUID inválida', async () => {
+  it('não aceita comandos ainda não implementados, timestamps do cliente ou UUID inválida', async () => {
     const order = await fresh(), before = await take(order.id);
-    for (const patch of [{ command: 'ENTER_OVEN' }, { assemblyStartedAt: '2000-01-01' }, { clientCommandId: 'abc' }]) expect((await request(app).post(endpoint(order)).set(authHeaders).send({ ...input(order, 'START_ASSEMBLY'), ...patch })).status).toBe(400);
+    for (const patch of [{ command: 'FINISH_PIZZA' }, { assemblyStartedAt: '2000-01-01' }, { clientCommandId: 'abc' }]) expect((await request(app).post(endpoint(order)).set(authHeaders).send({ ...input(order, 'START_ASSEMBLY'), ...patch })).status).toBe(400);
     expect(await take(order.id)).toEqual(before);
   });
   it('idempotência retorna resultado anterior sem alterar timestamps, versões ou histórico', async () => {

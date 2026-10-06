@@ -1,4 +1,8 @@
-# Guig's Kitchen — Balcão e montagem
+# Guig's Kitchen — Balcão, montagem e forno
+
+**Fase 3 — fluxo de montagem persistente, multioperador e realtime: STATUS CONCLUÍDA.** Fechamento da 3D.2D no commit `5f76de4`. Piloto físico permanece como validação operacional pendente e não bloqueia tecnicamente o início da Fase 4A — forno.
+
+**Fase 4A — forno operacional:** `/kitchen/oven` exibe a fila compartilhada WAITING_OVEN e pizzas IN_OVEN, com comandos persistentes ENTER_OVEN/REMOVE_FROM_OVEN, autoria, CAS, idempotência e realtime. Usa o mesmo PIN/terminal/heartbeat da montagem. Timer por timestamps do servidor, referência temporária configurável por `OVEN_DEFAULT_MINUTES` (default 7 minutos), sem retirada automática. BAKED prepara o handoff; finalização ainda não implementada. [Contrato, configuração, testes e limites](docs/PHASE_4A_OVEN.md).
 
 Protótipo local da operação da cozinha: criar pedidos fictícios, persistir em SQLite, avançar por estados validados e acompanhar o histórico em tempo real. O escopo e as fases futuras estão em [BASE_DO_PROJETO.md](BASE_DO_PROJETO.md).
 
@@ -23,6 +27,7 @@ Com ambiente preparado, também é possível executar `npm run dev`. Na primeira
 | Novo pedido | http://localhost:5173/orders/new |
 | Cozinha | http://localhost:5173/kitchen |
 | Fila de Montagem (persistida, identificação por PIN) | http://localhost:5173/kitchen/assembly |
+| Forno (fila compartilhada, identificação por PIN) | http://localhost:5173/kitchen/oven |
 | Simulador da montagem (somente desenvolvimento) | http://localhost:5173/kitchen/assembly/dev |
 | Saúde da API | http://localhost:3333/health |
 | Pedidos ativos | `GET http://localhost:3333/orders` |
@@ -206,4 +211,10 @@ O teste realtime também valida dois montadores, PIN touch, refresh, troca e aut
 
 Supervisor configurado administrativamente com `npm run operator:configure -- --supervisor` acessa `/kitchen/assembly/recovery`: pausa explícita, liberação ou reassign com motivo, CAS, idempotência e auditoria. Novo responsável deve estar disponível e online; montagem ativa exige pausa antes de recuperar. Não existe supervisor/PIN padrão na loja. Os comandos `--assembler` removem o papel; sem flag, papel existente é preservado. Banco recebeu migration aditiva com backup e verificação de preservação/integridade.
 
-`npm run test:assembly:presence:browser` valida três tablets com perda de rede/aba, exclusão da distribuição, reservas preservadas, recuperação pela UI, histórico/realtime, retorno e API reiniciada, além de encerramento livre/bloqueado. Detalhes, limites, testes e piloto físico em [PHASE_3D2D_PRESENCE_RECOVERY.md](docs/PHASE_3D2D_PRESENCE_RECOVERY.md). Forno operacional e finalização ainda não foram implementados.
+`npm run test:assembly:presence:browser` valida três tablets com perda de rede/aba, exclusão da distribuição, reservas preservadas, recuperação pela UI, histórico/realtime, retorno e API reiniciada, além de encerramento livre/bloqueado. Detalhes, limites, testes e piloto físico em [PHASE_3D2D_PRESENCE_RECOVERY.md](docs/PHASE_3D2D_PRESENCE_RECOVERY.md). Forno operacional foi acrescentado na Fase 4A abaixo; finalização permanece futura.
+
+## Fase 4A — módulo operacional de forno
+
+Rota `/kitchen/oven`, fila compartilhada por pizza, ordenação pela montagem mais antiga, área IN_OVEN e indicadores orientativos de tempo. ENTER_OVEN grava entrada/previsão, REMOVE_FROM_OVEN grava BAKED, mantendo histórico, agregação e recibo na mesma transação. Operador do forno exige presença válida; a autoria original da montagem é preservada. Quem atuar exclusivamente no forno pode suspender o recebimento de novas pizzas de montagem pela própria tela.
+
+`npm run test:oven` valida fila/timer/reconciliação. `npm run test:oven:browser` inicia Vite 5183/API 3352/SQLite descartáveis, sem usar banco da loja: balcão → montagem → forno, dois tablets, Broto/meio a meio, refresh/reabertura, relógio deslocado, resposta perdida/replay, 30 pizzas, disputa 200/409, rede e reinício da API. Lint/typecheck/build, 182 testes API, 34 montagem e 16 forno. Não há nova migration ou alteração do lockfile. [Documentação da 4A](docs/PHASE_4A_OVEN.md).

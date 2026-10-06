@@ -21,6 +21,8 @@
     "smoke": "node scripts/smoke.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:assembly": "vitest run apps/web/src/features/kitchen/assembly.test.ts apps/web/src/features/kitchen/assembly-read.test.ts apps/web/src/features/kitchen/realtime.test.ts",
+    "test:oven": "vitest run apps/web/src/features/oven/oven.test.ts",
+    "test:oven:browser": "node scripts/oven-browser-smoke.mjs",
     "test:assembly:browser": "node scripts/assembly-browser-smoke.mjs",
     "test:assembly:persisted:browser": "node scripts/assembly-persisted-browser-smoke.mjs",
     "test:assembly:commands:browser": "node scripts/assembly-commands-browser-smoke.mjs",

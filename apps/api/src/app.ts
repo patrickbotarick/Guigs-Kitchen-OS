@@ -13,6 +13,7 @@ import { operatorLoginSchema, operatorAvailabilitySchema } from '@guigs/shared';
 import { OperationalAuthError, PinLoginError, LoginRateLimitError, SessionResponsibilityConflictError, type OperatorSessionService, type SessionCredentials } from './operator-sessions.js';
 import { supervisorRecoverySchema } from '@guigs/shared';
 import { SupervisorPermissionError, type SupervisorRecoveryService } from './supervisor-recovery.js';
+import { ovenConfiguration } from './oven-config.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -31,6 +32,7 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/kitchen/oven/config', (_req, res) => res.set('Cache-Control', 'no-store').json(ovenConfiguration()));
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
   if (operators) {
     app.post('/operators/session/heartbeat', async (req, res, next) => {

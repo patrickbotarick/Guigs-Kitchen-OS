@@ -166,8 +166,9 @@ export const createStructuredOrderSchema = z.object({
 export type CreateStructuredOrderInput = z.infer<typeof createStructuredOrderSchema>;
 
 export const assemblyCommands = ['START_ASSEMBLY', 'PAUSE_ASSEMBLY', 'RESUME_ASSEMBLY', 'SEND_TO_OVEN', 'CLAIM_PIZZA', 'RELEASE_PIZZA'] as const;
+export const ovenCommands = ['ENTER_OVEN', 'REMOVE_FROM_OVEN'] as const;
 export const pizzaCommandSchema = z.object({
-  command: z.enum(assemblyCommands), expectedState: pizzaProductionStateSchema,
+  command: z.enum([...assemblyCommands, ...ovenCommands]), expectedState: pizzaProductionStateSchema,
   expectedVersion: z.number().int().nonnegative(), clientCommandId: z.string().uuid(),
 }).strict();
 export type PizzaCommandInput = z.infer<typeof pizzaCommandSchema>;
@@ -179,6 +180,11 @@ export const assemblyCommandTransitions = {
   RESUME_ASSEMBLY: { from: 'ASSEMBLY_PAUSED', to: 'ASSEMBLING' },
   SEND_TO_OVEN: { from: 'ASSEMBLING', to: 'WAITING_OVEN' },
 } as const;
+export const ovenCommandTransitions = {
+  ENTER_OVEN: { from: 'WAITING_OVEN', to: 'IN_OVEN' },
+  REMOVE_FROM_OVEN: { from: 'IN_OVEN', to: 'BAKED' },
+} as const;
+export const ovenConfigurationSchema = z.object({ defaultOvenMinutes: z.number().positive().max(240), serverTime: z.string().datetime() }).strict();
 
 const transitions: Record<PizzaProductionState, readonly PizzaProductionState[]> = {
   WAITING_ASSEMBLY: ['ASSEMBLING', 'CANCELLED'], ASSEMBLING: ['ASSEMBLY_PAUSED', 'WAITING_OVEN', 'CANCELLED'],

@@ -1,6 +1,6 @@
 # Fase 3D.2D — presença, turno e recuperação supervisionada
 
-Implementação local de 06/10/2026. A Fase 3D.2C foi fechada no commit `e894040`, `feat: add automatic pizza workload distribution`, após revisão e lint/typecheck/129 testes API/34 testes de montagem/build. Esta fase preserva criação v1/v2, comandos, snapshots, responsabilidade, distribuição por carga e realtime. Não acrescenta forno operacional, finalização, pesos, dashboard, estoque ou ERP.
+Implementação de 06/10/2026, fechada no commit `5f76de4`, `feat: add operator presence and supervised recovery`. **Fase 3 — fluxo de montagem persistente, multioperador e realtime: STATUS CONCLUÍDA.** A Fase 3D.2C foi fechada no commit `e894040`. Esta fase preserva criação v1/v2, comandos, snapshots, responsabilidade, distribuição por carga e realtime. Forno operacional é desenvolvido na fase seguinte, separada. O piloto físico continua como validação operacional pendente, sem bloqueio técnico para iniciar 4A.
 
 ## Presença e heartbeat
 
@@ -140,4 +140,4 @@ Validações finais: lint/typecheck/build, **160 testes API**, **34 testes monta
 - SQLite serializa writers; repetir carga real e ajustar prazos conforme operação. Migração para outro banco exige revisar isolamento da distribuição/CAS.
 - Realtime sem outbox depende de GET para eventos perdidos. Recuperação com resposta incerta após sair da tela exige conferir estado/histórico.
 
-**Pronto tecnicamente para planejar/iniciar a Fase 4 — Forno após piloto assistido e fechamento da 3D.2D no Git.** Primeiro executar piloto físico com três tablets, interrupção de rede/aba, carga e recuperação por supervisor. Não há forno operacional, timer, entrada/saída de forno ou finalização implementados nesta entrega. A 3D.2D fica local para revisão, sem commit/push solicitado nesta fase.
+**Fase 3 concluída tecnicamente e fechada no Git (`5f76de4`).** O piloto físico com três tablets, interrupção de rede/aba, carga e recuperação por supervisor permanece pendente e não bloqueia o início técnico da 4A. Forno não fazia parte do escopo desta entrega; sua implementação está documentada em [PHASE_4A_OVEN.md](PHASE_4A_OVEN.md). Não houve push.

@@ -10,11 +10,12 @@ import { AssemblyLayout } from './features/kitchen/useAssembly';
 import { KitchenAssemblyPage } from './features/kitchen/pages/KitchenAssemblyPage';
 import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorPage';
 import { KitchenRecoveryPage } from './features/kitchen/pages/KitchenRecoveryPage';
+import { OvenPage } from './features/oven/OvenPage';
 import './style.css';
 
 function App() {
   const location = useLocation();
-  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/');
+  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven';
   return <div className="app-shell">
     {!assembly && <header className="topbar">
       <Link className="brand" to="/" aria-label="Guig's Kitchen, voltar ao painel"><BrandLogo /></Link>
@@ -23,6 +24,7 @@ function App() {
         <Link className={location.pathname === '/orders/new' ? 'active' : ''} to="/orders/new">Novo pedido</Link>
         <Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Cozinha</Link>
         <Link to="/kitchen/assembly">Montagem</Link>
+        <Link to="/kitchen/oven">Forno</Link>
       </nav>
     </header>}
     <main><Routes>
@@ -30,6 +32,7 @@ function App() {
       <Route path="/orders/new" element={<NewOrder />} />
       <Route path="/orders/new/legacy" element={<LegacyNewOrder />} />
       <Route path="/kitchen" element={<Kitchen />} />
+      <Route path="/kitchen/oven" element={<OvenPage />} />
       <Route path="/kitchen/assembly" element={<AssemblyLayout />}>
         <Route index element={<KitchenAssemblyPage />} />
         <Route path="recovery" element={<KitchenRecoveryPage />} />
