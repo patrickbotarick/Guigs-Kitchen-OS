@@ -1,3 +1,6 @@
+import { OperationalHeader } from '../components/OperationalHeader';
+import { useOperatorSession } from '../features/kitchen/useOperatorSession';
+import { useOperationalFlow } from '../features/kitchen/useOperationalFlow';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { createStructuredOrderSchema, type CreateStructuredOrderInput, type Order } from '@guigs/shared';
@@ -28,6 +31,7 @@ function storePending(input: CreateStructuredOrderInput | null) {
 }
 
 export function NewOrder() {
+  const auth = useOperatorSession(), connection = useOperationalFlow().connection;
   const [restored] = useState(readPending);
   const [customerName, setCustomerName] = useState(restored?.customerName ?? '');
   const [customerPhone, setCustomerPhone] = useState(restored?.customerPhone ?? '');
@@ -72,7 +76,7 @@ export function NewOrder() {
   }
 
   return <div className="page form-page">
-    <div className="page-head"><div><div className="eyebrow">SIMULADOR · ENTRADA FUTURA SAIPOS</div><h1 aria-label="Novo pedido de teste">Simulador de Pedido</h1><p>Simula a entrada que futuramente será recebida da Saipos e envia o pedido ao fluxo real do Kitchen OS.</p></div></div>
+    <OperationalHeader title="Simulador de Pedido" operator={auth.session?.operatorName} connection={connection} /><div className="page-head"><div><div className="eyebrow">SIMULADOR · ENTRADA FUTURA SAIPOS</div><h1 aria-label="Novo pedido de teste">Simulador de Pedido</h1><p>Simula a entrada que futuramente será recebida da Saipos e envia o pedido ao fluxo real do Kitchen OS.</p></div></div>
     {created ? <section className="success" role="status"><div className="success-mark">✓</div><div className="eyebrow">PEDIDO SALVO</div><h2>#{String(created.number).padStart(4, '0')} aguardando montagem</h2><p>Pedido de {created.customerName} salvo com {created.items.filter(item => item.kind === 'PIZZA').length} pizza(s).</p><p>Este pedido pode ser consultado na fila de montagem.</p><div className="actions"><button className="button primary" type="button" onClick={reset}>Criar outro pedido</button><Link className="button secondary" to="/kitchen/assembly">Abrir montagem</Link></div></section> :
       <form onSubmit={event => void submit(event)}>
         <fieldset disabled={saving || pending !== null} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>

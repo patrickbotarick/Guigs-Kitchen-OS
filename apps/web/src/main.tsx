@@ -19,9 +19,9 @@ import './operational-ui.css';
 
 function App() {
   const location = useLocation();
-  const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch' || location.pathname === '/counter/dispatch';
+  const operational = location.pathname === '/kitchen' || location.pathname === '/orders/new' || location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch' || location.pathname === '/counter/dispatch';
   return <div className="app-shell">
-    {!assembly && <header className="topbar">
+    {!operational && <header className="topbar">
       <Link className="brand" to="/kitchen" aria-label="Guig's Kitchen, visão geral"><BrandLogo /></Link>
       <OperationalNavigation />
     </header>}

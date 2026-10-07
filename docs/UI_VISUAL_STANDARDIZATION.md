@@ -1,3 +1,7 @@
+## Shell operacional — Rodada 2A
+
+Referência vigente: Assembly preserva três colunas, identidade no topo direito, filtro único e navegação inferior. Visão Geral, Forno/Finalização, Balcão e Simulador usam OperationalHeader escuro, logo existente, título central e nome + único status. OperationalNavigation exibe Nome | Menu/×; configurações da estação ficam no painel. Controles normais não exibem IDs técnicos nem Atualizar. Ver [relatório da Rodada 2A](UX_UI_ROUND2A_SHELL_REPORT.md). As descrições de disposição da Rodada 1 abaixo são históricas quando divergirem deste shell.
+
 # Padrão visual do Guig's Kitchen OS
 
 ## Regra vigente — Rodada 1 pós-piloto Android, 07/10/2026

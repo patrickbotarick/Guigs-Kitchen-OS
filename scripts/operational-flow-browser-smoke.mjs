@@ -1,3 +1,4 @@
+import { openOperationalMenu, closeOperationalMenu, selectAssemblyFilter } from './helpers/operational-navigation.mjs';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -30,10 +31,10 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(`${webOrigin}${path}`); await loginPin(page, pin);
       if (path.endsWith('/assembly')) {
-        await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click();
-        await page.getByText('Suspenso neste tablet', { exact: true }).waitFor();
+        await openOperationalMenu(page); await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click();
+        await page.getByText('Pausado', { exact: true }).waitFor(); await closeOperationalMenu(page);
       } else {
-        await page.getByText('Recebimento de montagem exclusivo à estação Montagem', { exact: true }).waitFor();
+        await page.getByLabel('Identidade operacional', { exact: true }).waitFor();
         const key = await page.evaluate(() => localStorage.getItem('guigs-workstation-device-key'));
         const session = await prisma.operatorSession.findFirstOrThrow({ where: { workstation: { deviceKey: key }, active: true } });
         assert.equal(session.available, false);
@@ -54,7 +55,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     async function clickCommand(page, button, command) {
       const pending = page.waitForResponse(response => response.request().method() === 'POST' && response.request().postDataJSON()?.command === command);
       await button.click(); const response = await pending; assert.equal(response.status(), 200, await response.text());
-      await page.waitForFunction(() => !document.querySelector('.oven-toolbar button')?.disabled);
+      await page.getByRole('status').filter({ hasText: 'Comando confirmado e salvo.' }).waitFor();
       return response.json();
     }
     async function create(count = 1, extras = false, fulfillmentType = 'DELIVERY') {
@@ -72,7 +73,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await form.getByRole('button', { name: 'Criar pedido →', exact: true }).click();
     await form.getByRole('heading', { name: /aguardando montagem/ }).waitFor();
     const [created] = await (await assembly.request.get(`${apiOrigin}/orders/v2`)).json();
-    await assembly.getByRole('button', { name: 'Fila geral', exact: true }).click();
+    await selectAssemblyFilter(assembly, 'Fila geral');
     await assembly.getByRole('heading', { name: `Pedido #${created.number}`, exact: true }).waitFor();
     await assembly.getByRole('button', { name: 'Assumir pizza', exact: true }).click();
     await assembly.getByRole('button', { name: 'Iniciar montagem', exact: true }).click();
@@ -92,7 +93,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await clickCommand(station, card(1).getByRole('button', { name: 'Retirar do forno' }), 'REMOVE_FROM_OVEN');
     await clickCommand(station, card(1).getByRole('button', { name: 'Finalizar pizza' }), 'FINISH_PIZZA'); await clickCommand(station, add(1), 'ADD');
     await clickCommand(station, station.getByRole('button', { name: 'Fechar rota', exact: true }), 'CLOSE');
-    const closed = counter.getByLabel('Rota fechada 1', { exact: true }); await closed.waitFor();
+    const closed = counter.getByLabel('Rota fechada 1', { exact: true }); await closed.waitFor({ timeout: 5000 });
     assert.equal(await closed.getByRole('button', { name: 'Registrar saída da rota' }).isDisabled(), true); await counter.getByText(/Pedido incompleto/).waitFor();
     const stale = await routeRead(routeId); await clickCommand(counter, closed.getByRole('button', { name: 'Reabrir rota' }), 'REOPEN');
     await post(`/dispatch/routes/${routeId}/commands`, { command: 'CLOSE', expectedVersion: stale.version }, 409);
@@ -109,7 +110,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await clickCommand(station, card(2).getByRole('button', { name: 'Finalizar pizza' }), 'FINISH_PIZZA'); await clickCommand(station, add(2), 'ADD');
     destination = await routeRead(second.routes[0].id);
     await post(`/dispatch/routes/${destination.id}/commands`, { command: 'ADD', expectedVersion: destination.version, pizzaId: created.items[0].id }, 409);
-    await clickCommand(station, station.getByRole('button', { name: 'Fechar rota', exact: true }), 'CLOSE'); await closed.waitFor();
+    await clickCommand(station, station.getByRole('button', { name: 'Fechar rota', exact: true }), 'CLOSE'); await closed.waitFor({ timeout: 5000 });
     for (let i = 0; i < 3; i++) await clickCommand(counter, closed.getByRole('button', { name: 'Conferir pizza', exact: true }).first(), 'CHECK_PIZZA');
     // A competing terminal commits first. The real UI receives 409 and reconciles.
     let compete = true;
@@ -142,18 +143,18 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     const pickup = await create(1, false, 'PICKUP'); await pizzaCommand(pickup.id, 0, 'START_ASSEMBLY'); await pizzaCommand(pickup.id, 0, 'SEND_TO_OVEN'); await create();
     for (const [width, height] of [[1024, 768], [1280, 800], [1366, 768]]) for (const [page, path, selector, label] of [[board, '/kitchen', '.kb-columns', 'kitchen'], [assembly, '/kitchen/assembly', '.ka-pizza-card', 'assembly'], [station, '/kitchen/finishing', '.oven-card', 'finishing'], [counter, '/counter/dispatch', '.flow-counter-order', 'counter'], [board, '/orders/new', '.pizza-form', 'form']]) {
       await page.setViewportSize({ width, height }); await page.goto(`${webOrigin}${path}`);
-      if (path === '/kitchen/assembly') await page.getByRole('button', { name: 'Fila geral', exact: true }).click();
+      if (path === '/kitchen/assembly') await selectAssemblyFilter(page, 'Fila geral');
       await page.locator(selector).first().waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${path} ${width}: overflow`);
       assert.ok(await page.evaluate(() => ![...document.querySelectorAll('.button')].some(button => button.getBoundingClientRect().height < 44)), `${path}: alvo touch insuficiente`);
       if (path === '/kitchen') { assert.equal(await page.locator('.kb-column').count(), 4); assert.equal(await page.locator('.kb-card button').count(), 0); }
       await page.screenshot({ path: resolve(shots, `${label}-${width}x${height}.png`) });
-      if (['finishing', 'counter'].includes(label)) { await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); assert.ok(await page.locator('.oven-header').evaluate(header => header.getBoundingClientRect().top >= -1), `${path}: cabeçalho durante scroll`); }
+      if (['finishing', 'counter'].includes(label)) { await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); assert.ok(await page.locator('.operational-header').evaluate(header => header.getBoundingClientRect().top >= -1), `${path}: cabeçalho durante scroll`); }
     }
     await station.goto(`${webOrigin}/kitchen/oven`); await station.waitForURL(`${webOrigin}/kitchen/finishing`);
     await counter.goto(`${webOrigin}/kitchen/dispatch`); await counter.waitForURL(`${webOrigin}/counter/dispatch`);
     await station.getByLabel('Identidade operacional', { exact: true }).waitFor();
-    await station.getByLabel('Conexão Forno e Finalização', { exact: true }).filter({ hasText: /^Online$/ }).waitFor();
+    await station.getByLabel('Conexão', { exact: true }).filter({ hasText: /^Online$/ }).waitFor();
     await contexts[1].setOffline(true); await station.getByText('Offline', { exact: true }).waitFor(); assert.equal(await station.getByRole('button', { name: 'Retirar do forno' }).isDisabled(), true);
     await contexts[1].setOffline(false); await station.getByText('Online', { exact: true }).waitFor(); await restart(); await station.reload(); await station.locator(`[data-pizza-id="${pickup.items[0].id}"]`).waitFor();
     // Lose the HTTP response after commit: sessionStorage + same ID recover after refresh.

@@ -1,3 +1,4 @@
+import { StationIdentity } from '../../../components/StationIdentity';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
@@ -44,7 +45,7 @@ export function KitchenRecoveryPage() {
   }
   if (operatorSession?.role !== 'SUPERVISOR') return <section className="page recovery-page"><OperationalNavigation /><h1>Recuperação supervisionada</h1><p role="alert">Acesso restrito a supervisor.</p><Link className="button subtle" to="/kitchen">Voltar à visão geral</Link></section>;
   return <section className="page recovery-page"><header className="recovery-header"><OperationalNavigation /></header>
-    <h1>Recuperação supervisionada</h1><p aria-label="Identidade operacional">{operatorSession.operatorName} • {operatorSession.workstationName} • {connection === 'ONLINE' ? 'Online' : 'Sem conexão confirmada'}</p>
+    <h1>Recuperação supervisionada</h1><StationIdentity operator={operatorSession.operatorName} connection={connection} />
     <p>Confira a situação física da pizza. Montagem ativa exige uma pausa explícita antes da liberação ou reatribuição.</p>
     <form onSubmit={event => event.preventDefault()}>
     <label>Pizza atribuída<select aria-label="Pizza para recuperação" value={pizzaId} disabled={busy || Boolean(pending)} onChange={event => setPizzaId(event.target.value)}><option value="">Selecione</option>{entries.map(({ order, pizza }) => <option key={pizza.id} value={pizza.id}>#{order.number} · Pizza {order.items.indexOf(pizza) + 1} · {pizza.assignment?.operatorName} · {pizza.status}</option>)}</select></label>

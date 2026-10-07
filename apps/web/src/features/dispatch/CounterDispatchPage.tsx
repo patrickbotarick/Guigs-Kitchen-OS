@@ -1,8 +1,8 @@
-import { OperationalNavigation } from '../../components/OperationalNavigation';
+import { OperationalHeader } from '../../components/OperationalHeader';
 import type { Order, OperationalSession, DispatchRouteView } from '@guigs/shared';
 import { useOperatorSession } from '../kitchen/useOperatorSession';
 import { OperatorPin } from '../kitchen/components/OperatorPin';
-import { AssemblyIcon } from '../kitchen/components/AssemblyIcons';
+
 import { useOperationalFlow } from '../kitchen/useOperationalFlow';
 import { RouteStaging } from '../kitchen/RouteStaging';
 import type { SessionCredentials } from '../kitchen/operatorSession';
@@ -15,8 +15,8 @@ type Command = (path: string, body: Record<string, unknown>) => void;
 export function CounterDispatchPage() { const auth = useOperatorSession(); if (!auth.session || !auth.credentials) return <OperatorPin {...auth} module="Balcão · Despacho" />; return <Counter key={auth.session.sessionId} session={auth.session} credentials={auth.credentials} authBusy={auth.busy} authError={auth.error} end={auth.end} />; }
 function Counter({ session, credentials, authBusy, authError, end }: { session: OperationalSession; credentials: SessionCredentials; authBusy: boolean; authError: string; end: () => Promise<void> }) {
   const queue = useOperationalFlow(credentials, session.sessionId), enabled = queue.canAct && !authBusy && !authError && session.presenceStatus === 'ONLINE';
-  return <section className="oven-page counter-dispatch"><header className="oven-header"><div><h1><AssemblyIcon name="flag" />Balcão · Despacho</h1><p aria-label="Identidade operacional">{session.operatorName} · {session.workstationName}</p></div><div className="oven-header-actions"><span role="status">{queue.connection === 'ONLINE' ? 'Online' : queue.connection === 'OFFLINE' ? 'Offline' : 'Reconectando'}</span><OperationalNavigation /><button className="button secondary" disabled={authBusy || queue.busy || queue.pending} onClick={() => void end()}>Encerrar turno</button></div></header>
-    <div className="oven-toolbar"><button className="button secondary" disabled={queue.refreshing || queue.busy} onClick={queue.reload}>Atualizar</button><span className="station-policy">Recebimento de montagem exclusivo à estação Montagem</span></div>
+  return <section className="oven-page counter-dispatch"><OperationalHeader title="Balcão" operator={session.operatorName} connection={queue.connection} actions={<button type="button" disabled={authBusy || queue.busy || queue.pending} onClick={() => void end()}>Encerrar turno</button>} />
+    <div className="oven-toolbar">{queue.error && <button className="button secondary" disabled={queue.refreshing || queue.busy} onClick={queue.reload}>Tentar novamente</button>}</div>
     {(queue.error || authError) && <p role="alert" className="oven-alert">{queue.error} {authError}</p>}{queue.notice && <p role="status" className="oven-notice">{queue.notice}</p>}{queue.pending && <button className="button secondary" disabled={queue.busy || queue.connection !== 'ONLINE'} onClick={queue.retry}>Confirmar envio</button>}{queue.loading && <p role="status">Carregando rotas…</p>}
     <h2>Rotas fechadas para conferência</h2>{queue.routes.filter(route => route.status === 'CLOSED').map(route => <ClosedRoute key={route.id} route={route} orders={queue.orders} command={queue.command} enabled={enabled} />)}{!queue.routes.some(route => route.status === 'CLOSED') && <p className="oven-empty">Nenhuma rota fechada</p>}
     <RouteStaging routes={queue.routes} orders={queue.orders} command={queue.command} enabled={enabled} counter />

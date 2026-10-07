@@ -225,3 +225,47 @@ body { background: var(--kui-background); }
 .kb-header > div { margin-right: auto; }
 .kitchen-board { padding: 12px; }
 @media (max-width: 1100px) { .topbar { flex-wrap: nowrap; } .topbar .brand-product { display: none; } }
+/* Round 2A: application-owned shell and accessible operational popovers. */
+.operational-header { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; min-height: 88px; padding: 8px 16px; background: var(--kui-text); color: var(--kui-surface); margin-bottom: 12px; border-radius: var(--kui-panel-radius); }
+.operational-header h1 { font-size: clamp(17px, 1.8vw, 25px); margin: 0; text-align: center; text-transform: uppercase; letter-spacing: .025em; }
+.operational-logo { display: flex; width: 64px; min-height: 44px; align-items: center; }
+.operational-logo img { width: 64px; max-height: 68px; object-fit: contain; }
+.operational-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 0; }
+.station-identity { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 12px; min-width: 0; }
+.station-identity > span:first-child { overflow-wrap: anywhere; }
+.station-connection { white-space: nowrap; }
+.station-connection::before { content: '●'; padding-right: 5px; }
+.station-connection-online::before { color: var(--kui-success); }
+.station-connection-reconnecting::before { color: var(--kui-warning); }
+.station-connection-offline::before { color: var(--kui-danger); }
+.op-popover { position: relative; min-width: 0; }
+.op-trigger { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--kui-line); border-radius: var(--kui-button-radius); background: var(--kui-surface); color: var(--kui-text); font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.op-menu-label { min-width: 36px; text-align: right; }
+.op-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 130px); overflow-y: auto; padding: 10px; border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); background: var(--kui-surface); color: var(--kui-text); box-shadow: 0 8px 24px #14141630; }
+.op-popover-up .op-panel { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; max-height: calc(100dvh - 80px); }
+.op-panel h2 { margin: 8px 6px 4px; padding: 0; font-size: 11px; color: var(--kui-muted); text-transform: uppercase; letter-spacing: .08em; }
+.op-panel a, .op-panel button, .op-panel summary { display: flex; width: 100%; align-items: center; justify-content: space-between; min-width: 44px; min-height: 44px; padding: 8px; border: 0; border-radius: var(--kui-button-radius); background: transparent; color: var(--kui-text); text-align: left; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; touch-action: manipulation; }
+.op-panel a[aria-current="page"], .op-panel button[aria-pressed="true"] { background: var(--kui-selected); color: var(--color-brand-primary); font-weight: 700; }
+.op-panel button:disabled { opacity: .55; cursor: not-allowed; }
+.op-popover button:focus-visible, .op-popover a:focus-visible, .op-popover summary:focus-visible { outline: 3px solid var(--kui-added); outline-offset: 2px; }
+.op-station-settings { border-top: 1px solid var(--kui-line); margin-top: 8px; padding-top: 8px; }
+.op-station-settings p { font-size: 12px; padding: 8px; }
+.op-filter { margin-bottom: 8px; }
+.op-filter .op-panel { left: 0; right: auto; width: 100%; }
+.ka-station-menu { padding-top: 8px; flex: none; }
+.ka-detail-wrapper { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ka-detail-wrapper > .ka-detail { flex: 1; min-height: 0; }
+.ka-empty > .station-identity { position: absolute; top: 12px; right: 12px; }
+.ka-empty { position: relative; }
+.kitchen-board { height: 100dvh; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.kitchen-board .kb-columns { flex: 1; min-height: 0; }
+.kitchen-board .kb-column { min-height: 0; }
+.kitchen-board .kb-cards { overflow-y: auto; min-height: 0; }
+.form-page { max-width: none; }
+.form-page .page-head, .form-page form { max-width: 1248px; margin-inline: auto; }
+.counter-dispatch .oven-toolbar:empty { display: none; }
+@media (max-width: 900px) { .operational-header { grid-template-columns: 64px minmax(0, 1fr); } .operational-header h1 { grid-column: 2; } .operational-header-right { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; } }
+.kb-column { display: flex; flex-direction: column; }
+.kb-column h2 { flex: none; }
+.kb-cards { align-content: start; }
+.op-panel nav { display: block; }
