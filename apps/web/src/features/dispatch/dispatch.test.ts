@@ -2,8 +2,26 @@ import { describe, expect, it } from 'vitest';
 import type { Order } from '@guigs/shared';
 import { availableDispatchCommands, dispatchQueue, dispatchWaitingSeconds } from './dispatch';
 import { KitchenReconciliation } from '../kitchen/realtime';
+import { routeConference } from './routeConference';
+import { structuredFixture } from '../../../../api/src/test-fixtures/kitchen';
+import type { DispatchRouteView } from '@guigs/shared';
 function fixture(status: Order['status'] = 'WAITING_DISPATCH', fulfillmentType: Order['fulfillmentType'] = 'DELIVERY', number = 1, ready = '2026-10-06T12:00:00Z'): Order { return { id: `order-${number}`, number, status, fulfillmentType, channel: 'COUNTER', schemaVersion: 2, customerName: 'Cliente teste', customerPhone: null, notes: null, receivedAt: ready, updatedAt: ready, packingFinishedAt: null, packingFinishedBy: null, createdAt: ready, version: 1, items: [], dispatch: { dispatchReadyAt: ready, completedAt: null, waitingDriverAt: null, dispatchedAt: null, deliveredAt: null, pickupReadyAt: null, pickedUpAt: null } }; }
 describe('fila e ações de despacho', () => {
+  it('rota parcial permanece bloqueada mesmo quando o pedido já foi liberado', () => {
+    const order = structuredFixture(); order.operationalFlowVersion = 2; order.status = 'WAITING_DISPATCH';
+    const pizza = order.items[0]; if (pizza.kind !== 'PIZZA') throw new Error('Pizza'); pizza.production.state = 'FINISHED'; pizza.counterCheckedAt = order.receivedAt;
+    order.items.push({ ...pizza, id: 'second', position: 2 }); order.packingFinishedAt = order.receivedAt;
+    const route = { items: [{ orderId: order.id, pizzaId: pizza.id }] } as DispatchRouteView;
+    expect(routeConference(route, [order])).toMatchObject({ pizzas: 2, checkedPizzas: 1, extras: 2, checkedExtras: 0, packing: 1, pending: 1, complete: false });
+  });
+  it('resumo conta unidades de extras e mantém zero seguro para pedidos ausentes', () => {
+    const order = structuredFixture(); order.operationalFlowVersion = 2; order.status = 'WAITING_DISPATCH'; order.packingFinishedAt = order.receivedAt;
+    const pizza = order.items[0], extra = order.items[1]; if (pizza.kind !== 'PIZZA' || extra.kind !== 'EXTRA') throw new Error('Itens');
+    pizza.production.state = 'FINISHED'; pizza.counterCheckedAt = order.receivedAt; extra.checkedQuantity = 2;
+    const route = { items: [{ orderId: order.id, pizzaId: pizza.id }] } as DispatchRouteView;
+    expect(routeConference(route, [order])).toMatchObject({ checkedPizzas: 1, extras: 2, checkedExtras: 2, packing: 1, pending: 0, complete: true });
+    expect(routeConference(route, []).complete).toBe(false);
+  });
   it('só admite pedidos liberados/andamento e separa delivery/retirada', () => {
     const delivery = fixture(), pickup = fixture('READY_FOR_PICKUP', 'PICKUP', 2);
     const orders = [delivery, pickup, fixture('FINISHING', 'PICKUP', 3), fixture('DELIVERED', 'DELIVERY', 4), fixture('PICKED_UP', 'PICKUP', 5)];

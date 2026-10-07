@@ -38,7 +38,8 @@
     "test:structured:browser": "node scripts/structured-browser-smoke.mjs",
     "test:order-entry:browser": "node scripts/order-entry-browser-smoke.mjs",
     "build": "npm run build -w @guigs/api && npm run build -w @guigs/web",
-    "test:ux:round2a": "node scripts/ux-round2a-browser-smoke.mjs"
+    "test:ux:round2a": "node scripts/ux-round2a-browser-smoke.mjs",
+    "test:ux:round2b": "node scripts/ux-round2b-browser-smoke.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",

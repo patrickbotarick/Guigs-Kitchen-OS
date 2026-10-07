@@ -1,3 +1,4 @@
+import { openOperationalMenu, closeOperationalMenu, selectAssemblyFilter } from './helpers/operational-navigation.mjs';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -28,7 +29,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     let readsA = 0, readsB = 0;
     pageA.on('request', request => { if (request.method() === 'GET' && request.url() === `${apiOrigin}/orders/v2`) readsA++; });
     pageB.on('request', request => { if (request.method() === 'GET' && request.url() === `${apiOrigin}/orders/v2`) readsB++; });
-    const online = page => page.getByLabel('Conexão Assembly', { exact: true }).getByText('Online', { exact: true });
+    const online = page => page.getByLabel('Conexão', { exact: true }).getByText('Online', { exact: true });
     const screenshots = resolve(tmpdir(), 'guigs-operator-validation'); mkdirSync(screenshots, { recursive: true });
     for (const [index, page] of [pageA, pageB].entries()) {
       await page.goto(`${webOrigin}/kitchen/assembly`);
@@ -40,8 +41,8 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
         await page.screenshot({ path: resolve(screenshots, 'pin-tablet.png') });
       }
       await loginPin(page, operatorFixtures[index].pin);
-      await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click(); // Manual-claim regression. Automatic distribution has its own three-tablet suite.
-      await page.getByRole('button', { name: 'Fila geral', exact: true }).click();
+      await openOperationalMenu(page); await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click(); // Manual-claim regression. Automatic distribution has its own three-tablet suite.
+      await selectAssemblyFilter(page, 'Fila geral');
       await online(page).waitFor(); await page.getByRole('heading', { name: 'Nenhum pedido aguardando montagem', exact: true }).waitFor();
     }
     const identities = await prisma.operatorSession.findMany({ where: { active: true }, include: { operator: true, workstation: true } });
@@ -74,7 +75,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     const history = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: order.items[0].id }, orderBy: { itemVersion: 'asc' } });
     const joao = identities.find(session => session.operator.name === operatorFixtures[0].name), carlos = identities.find(session => session.operator.name === operatorFixtures[1].name);
     assert.deepEqual(history.slice(1).map(event => [event.operatorId, event.workstationId, event.operatorSessionId]), Array.from({ length: 5 }, () => [joao.operatorId, joao.workstationId, joao.id]));
-    for (const [index, page] of [pageA, pageB].entries()) { await page.reload(); await page.getByLabel('Identidade operacional', { exact: true }).waitFor(); await page.getByRole('button', { name: 'Fila geral', exact: true }).click(); assert.match(await page.getByLabel('Identidade operacional', { exact: true }).innerText(), new RegExp(operatorFixtures[index].name)); }
+    for (const [index, page] of [pageA, pageB].entries()) { await page.reload(); await page.getByLabel('Identidade operacional', { exact: true }).waitFor(); await selectAssemblyFilter(page, 'Fila geral'); assert.match(await page.getByLabel('Identidade operacional', { exact: true }).innerText(), new RegExp(operatorFixtures[index].name)); }
     assert.equal(await prisma.operatorSession.count(), 2, 'Refresh valida a sessão existente; não cria outra');
     console.info('Start assume atomicamente; João opera e Carlos visualiza com ações bloqueadas. Histórico e refresh aprovados.');
 
@@ -90,7 +91,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     const claimed = await (await a.request.get(`${apiOrigin}/orders/v2/${contested.id}`)).json();
     assert.equal(claimed.items[0].production.version, 1);
     await winner.reload(); await winner.getByText(/Montador: .*Sua pizza/).waitFor();
-    await winner.getByRole('button', { name: 'Fila geral', exact: true }).click();
+    await selectAssemblyFilter(winner, 'Fila geral');
     await winner.getByRole('button', { name: 'Liberar pizza', exact: true }).click();
     await loser.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
     await loser.waitForFunction(() => !document.querySelector('.ka-start')?.disabled);
@@ -101,7 +102,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
 
     const second = await create('Reconexão real');
     for (const page of [pageA, pageB]) await page.getByRole('heading', { name: `Pedido #${second.number}`, exact: true }).waitFor({ timeout: 5000 });
-    await b.setOffline(true); await pageB.getByLabel('Conexão Assembly', { exact: true }).getByText('Offline', { exact: true }).waitFor();
+    await b.setOffline(true); await pageB.getByLabel('Conexão', { exact: true }).getByText('Offline', { exact: true }).waitFor();
     await pageA.getByRole('button', { name: 'Iniciar montagem', exact: true }).click(); await pageA.getByRole('button', { name: 'Pausar', exact: true }).waitFor();
     const beforeReconnect = readsB; await b.setOffline(false);
     await online(pageB).waitFor(); await pageB.getByRole('button', { name: 'Pausar', exact: true }).waitFor({ timeout: 5000 });
@@ -110,7 +111,7 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
 
     const beforeRestartA = readsA, beforeRestartB = readsB;
     await stop();
-    for (const page of [pageA, pageB]) await page.getByLabel('Conexão Assembly', { exact: true }).filter({ hasNotText: /^Online$/ }).waitFor();
+    for (const page of [pageA, pageB]) await page.getByLabel('Conexão', { exact: true }).filter({ hasNotText: /^Online$/ }).waitFor();
     await start();
     for (const page of [pageA, pageB]) { await online(page).waitFor({ timeout: 15000 }); await page.getByRole('button', { name: 'Pausar', exact: true }).waitFor(); }
     // Wait for the mandatory GETs, without manual refresh or 120-second fallback.
@@ -123,29 +124,29 @@ await withIsolatedApi(3349, async ({ prisma, apiOrigin, stop, start }) => {
     await action(pageA, pageB, 'Pausar', 'Retomar');
     console.info('API reiniciada no mesmo SQLite: ambos reconectam, consultam estado persistido e retomam realtime.');
     await action(pageA, pageB, 'Retomar', 'Pausar');
-    await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
+    await openOperationalMenu(pageA); await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
     await pageA.getByText('Há pizzas sob sua responsabilidade. Pause e libere as pizzas, ou solicite recuperação ao supervisor, antes de trocar montador ou encerrar turno.', { exact: true }).waitFor();
     const blockedLogout = await pageA.request.delete(`${apiOrigin}/operators/session`, { headers: await authHeaders(pageA) }); assert.equal(blockedLogout.status(), 409);
-    await pageA.getByRole('button', { name: 'Continuar montando', exact: true }).click();
+    await pageA.getByRole('button', { name: 'Continuar montando', exact: true }).click(); await closeOperationalMenu(pageA);
     await action(pageA, pageB, 'Pausar', 'Retomar');
     await pageA.getByRole('button', { name: 'Liberar pizza', exact: true }).click();
     await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).waitFor();
-    await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
+    await openOperationalMenu(pageA); await pageA.getByRole('button', { name: 'Trocar montador', exact: true }).click();
     await loginPin(pageA, operatorFixtures[1].pin);
-    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
+    await selectAssemblyFilter(pageA, 'Fila geral');
     assert.match(await pageA.getByLabel('Identidade operacional', { exact: true }).innerText(), /Carlos fixture/);
     await pageA.getByRole('button', { name: 'Assumir pizza', exact: true }).click();
     await pageA.getByRole('button', { name: 'Liberar pizza', exact: true }).waitFor();
     const sameOperatorTab = await a.newPage(); await sameOperatorTab.goto(`${webOrigin}/kitchen/assembly`);
-    await sameOperatorTab.getByRole('button', { name: 'Fila geral', exact: true }).click();
+    await selectAssemblyFilter(sameOperatorTab, 'Fila geral');
     await sameOperatorTab.getByText(/Montador: Carlos fixture.*Sua pizza/).waitFor();
     await action(sameOperatorTab, pageB, 'Retomar', 'Pausar');
     await action(pageB, pageA, 'Pausar', 'Retomar');
-    await pageA.getByRole('button', { name: 'Minhas pizzas', exact: true }).click();
+    await selectAssemblyFilter(pageA, 'Minhas pizzas');
     await pageA.getByRole('heading', { name: `Pedido #${second.number}`, exact: true }).waitFor();
-    await pageA.getByRole('button', { name: 'Disponíveis', exact: true }).click();
+    await selectAssemblyFilter(pageA, 'Disponíveis');
     await pageA.getByRole('heading', { name: 'Nenhuma pizza neste filtro', exact: true }).waitFor();
-    await pageA.getByRole('button', { name: 'Fila geral', exact: true }).click();
+    await selectAssemblyFilter(pageA, 'Fila geral');
     const changedHistory = await prisma.pizzaProductionHistory.findMany({ where: { pizzaId: second.items[0].id }, orderBy: { itemVersion: 'asc' } });
     assert.equal(changedHistory[1].operatorId, joao.operatorId);
     assert.equal(changedHistory.at(-1).operatorId, carlos.operatorId);

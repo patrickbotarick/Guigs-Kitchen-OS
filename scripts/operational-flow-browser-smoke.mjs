@@ -94,7 +94,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await clickCommand(station, card(1).getByRole('button', { name: 'Finalizar pizza' }), 'FINISH_PIZZA'); await clickCommand(station, add(1), 'ADD');
     await clickCommand(station, station.getByRole('button', { name: 'Fechar rota', exact: true }), 'CLOSE');
     const closed = counter.getByLabel('Rota fechada 1', { exact: true }); await closed.waitFor({ timeout: 5000 });
-    assert.equal(await closed.getByRole('button', { name: 'Registrar saída da rota' }).isDisabled(), true); await counter.getByText(/Pedido incompleto/).waitFor();
+    assert.equal(await closed.getByRole('button', { name: 'Registrar saída da rota' }).isDisabled(), true); await closed.getByText('Produção pendente', { exact: true }).waitFor();
     const stale = await routeRead(routeId); await clickCommand(counter, closed.getByRole('button', { name: 'Reabrir rota' }), 'REOPEN');
     await post(`/dispatch/routes/${routeId}/commands`, { command: 'CLOSE', expectedVersion: stale.version }, 409);
     // Moving/removing remains editable only on open routes; CAS applies to both ends.
@@ -165,6 +165,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await clickCommand(counter, counter.getByRole('button', { name: 'Confirmar envio', exact: true }), 'DISPATCH');
     assert.equal(await prisma.dispatchRouteHistory.count({ where: { commandId: lostId, eventType: 'ROUTE_DISPATCHED' } }), 1);
     await post(`/dispatch/routes/${routeId}/commands`, { command: 'REOPEN', expectedVersion: (await routeRead(routeId)).version }, 409);
+    await counter.getByRole('button', { name: 'Selecionar rota 1', exact: true }).click();
     await clickCommand(counter, counter.getByRole('button', { name: 'Confirmar entrega', exact: true }), 'MARK_DELIVERED'); assert.equal((await read(created.id)).status, 'DELIVERED');
     for (const command of ['REMOVE_FROM_OVEN', 'FINISH_PIZZA']) await pizzaCommand(pickup.id, 0, command);
     let target = await routeRead(second.routes[0].id);
@@ -172,6 +173,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     await post(`/dispatch/routes/${target.id}/commands`, { command: 'CLOSE', expectedVersion: target.version });
     for (const command of ['CHECK_PIZZA', 'CONFIRM_PACKAGING', 'RELEASE_TO_DISPATCH']) { const order = await read(pickup.id), pizza = order.items[0]; await post(`/counter/orders/${order.id}/conference/commands`, { command, expectedVersion: order.version, ...(command === 'CHECK_PIZZA' ? { pizzaId: pizza.id, expectedItemVersion: pizza.production.version } : {}) }); }
     target = await routeRead(target.id); await post(`/dispatch/routes/${target.id}/commands`, { command: 'DISPATCH', expectedVersion: target.version });
+    await counter.getByRole('button', { name: `Selecionar rota ${target.routeNumber}`, exact: true }).click();
     await clickCommand(counter, counter.getByRole('button', { name: 'Confirmar retirada', exact: true }), 'MARK_PICKED_UP'); assert.equal((await read(pickup.id)).status, 'PICKED_UP');
     // Former station smokes stressed queues of 30; keep that coverage in the unified UI.
     const stress = await create(30); // All production transitions use real commands.
@@ -181,6 +183,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     let stressRoute = (await post('/dispatch/routes/commands', { command: 'CREATE' })).routes[0];
     for (const item of stress.items) { await post(`/dispatch/routes/${stressRoute.id}/commands`, { command: 'ADD', expectedVersion: stressRoute.version, pizzaId: item.id }); stressRoute = await routeRead(stressRoute.id); }
     await post(`/dispatch/routes/${stressRoute.id}/commands`, { command: 'CLOSE', expectedVersion: stressRoute.version });
+    await counter.getByRole('button', { name: `Selecionar rota ${stressRoute.routeNumber}`, exact: true }).click();
     const stressConference = counter.getByLabel(`Rota fechada ${stressRoute.routeNumber}`, { exact: true });
     await stressConference.getByRole('button', { name: 'Conferir pizza', exact: true }).nth(29).waitFor();
     assert.equal(await stressConference.getByRole('button', { name: 'Registrar saída da rota' }).isDisabled(), true);
@@ -194,6 +197,7 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
       await post(`/dispatch/routes/${batch.id}/commands`, { command: 'ADD', expectedVersion: batch.version, pizzaId: order.items[0].id }); batch = await routeRead(batch.id);
     }
     await post(`/dispatch/routes/${batch.id}/commands`, { command: 'CLOSE', expectedVersion: batch.version });
+    await counter.getByRole('button', { name: `Selecionar rota ${batch.routeNumber}`, exact: true }).click();
     const batchConference = counter.getByLabel(`Rota fechada ${batch.routeNumber}`, { exact: true });
     await batchConference.locator('.flow-counter-order').nth(29).waitFor();
     assert.equal(await batchConference.locator('.flow-counter-order').count(), 30);

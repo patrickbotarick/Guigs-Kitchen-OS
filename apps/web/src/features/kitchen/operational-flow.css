@@ -1,1 +1,77 @@
 .flow-routes{margin-top:var(--kui-gap,16px);padding:16px;background:var(--kui-surface);border:1px solid var(--kui-line);border-radius:var(--kui-panel-radius)}.flow-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.flow-section-heading h2{margin:0}.flow-route-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.flow-route-tabs [aria-pressed=true]{background:var(--kui-selected);border-color:var(--color-brand-primary)}.flow-route-columns{display:grid;grid-template-columns:1fr 1fr;gap:20px}.flow-route-columns>section{min-width:0}.flow-route-item{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--kui-line);padding:10px 0}.flow-route-item span{min-width:0;overflow-wrap:anywhere}.flow-route-item small{display:block;color:var(--kui-muted)}.flow-route-item>div{display:flex;gap:6px;flex-wrap:wrap}.flow-pending{color:var(--kui-warning);font-weight:700}.flow-counter-orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:12px;margin-top:16px}.flow-counter-order{padding:16px;background:var(--kui-surface);border:1px solid var(--kui-line);border-radius:var(--kui-card-radius)}.flow-counter-order h3{margin-top:0}.flow-counter-order .button{margin:4px 4px 4px 0}.flow-counter-line{padding:8px 0;border-top:1px solid var(--kui-line)}.flow-counter-line strong{display:block}.flow-counter-actions{margin:12px 0}.flow-route-columns select{width:100%;min-height:44px;margin:8px 0}.flow-counter-notice{font-size:13px;color:var(--kui-muted)}@media(max-width:700px){.flow-route-columns{grid-template-columns:1fr}.flow-route-item{flex-wrap:wrap}}
+.op-order-context { display: grid; gap: 3px; margin-bottom: 8px; min-width: 0; }
+.op-order-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.op-order-heading > strong { font-size: 24px; line-height: 1.1; letter-spacing: -.7px; }
+.op-order-age { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--kui-muted); }
+.op-order-customer { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.op-order-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.op-order-tags > span { font-size: 12px; background: var(--kui-neutral); border-radius: var(--kui-button-radius); padding: 2px 6px; }
+.flow-workspace { height: 100dvh; max-width: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.flow-workspace > .operational-header { margin: 0; flex: none; }
+.flow-workspace > .oven-alert, .flow-workspace > .oven-notice { margin: 0; padding: 6px 10px; font-size: 13px; flex: none; max-height: 46px; overflow-y: auto; }
+.flow-workspace .oven-toolbar { margin: 0; min-height: 36px; padding: 6px 12px; flex: none; }
+.flow-production-strip { justify-content: space-between; flex-wrap: wrap; font-size: 13px; gap: 4px 12px; }
+.flow-workspace .flow-production-columns { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); flex: 1; min-height: 180px; overflow: hidden; gap: 8px; }
+.flow-production-columns > .oven-column { display: flex; flex-direction: column; padding: 10px; min-height: 0; overflow: hidden; }
+.flow-production-columns h2 { margin: 0 0 8px; font-size: 20px; flex: none; }
+.flow-scroll { overflow-y: auto; min-height: 0; min-width: 0; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.flow-scroll:focus-visible { outline: 2px solid var(--kui-added); outline-offset: -2px; }
+.flow-production-columns .oven-cards { display: flex; flex-direction: column; align-items: stretch; gap: 8px; flex: 1; }
+.flow-production-columns .oven-card { padding: 10px; margin: 0; flex: none; }
+.flow-workspace .flow-production-columns .oven-clock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.flow-workspace .flow-production-columns .oven-clock strong { font-size: 30px; }
+.flow-workspace .flow-production-columns .oven-clock span { font-size: 12px; }
+.flow-production-columns .button { min-height: 44px; width: 100%; }
+.flow-waiting h3 { font-size: 17px; margin: 12px 0 8px; }
+.flow-waiting .oven-card { margin-top: 8px; }
+.flow-route-dock { flex: none; padding: 10px; margin: 0; max-height: min(42dvh, 310px); display: flex; flex-direction: column; min-height: 0; }
+.flow-section-heading h2 { font-size: 19px; }
+.flow-section-heading h2 small { display: inline-block; margin-left: 8px; color: var(--kui-muted); font-size: 12px; font-weight: 500; }
+.flow-dock-actions { display: flex; gap: 6px; }
+.flow-route-dock .flow-route-tabs { margin: 6px 0; flex: none; flex-wrap: nowrap; overflow-x: auto; }
+.flow-route-tabs > button { flex: none; min-height: 44px; }
+.flow-route-dock .flow-route-columns { flex: 1; min-height: 0; gap: 12px; }
+.flow-route-columns > section { display: flex; flex-direction: column; min-height: 0; }
+.flow-route-columns h3 { font-size: 14px; margin: 4px 0; flex: none; }
+.flow-route-columns .flow-scroll { flex: 1; }
+.flow-route-item { padding: 8px 0; font-size: 13px; }
+.flow-route-item > span { flex: 1; }
+.flow-route-footer { display: flex; align-items: center; gap: 8px; flex: none; }
+.flow-route-footer label { flex: 1; font-size: 12px; }
+.flow-route-footer select { margin: 2px 0; }
+.flow-route-footer .button { min-height: 44px; }
+.flow-counter-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 8px; flex: 1; min-height: 0; }
+.flow-route-sidebar { background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); padding: 10px; display: flex; flex-direction: column; min-height: 0; }
+.flow-route-sidebar > header { flex: none; }
+.flow-route-sidebar h2 { margin: 0 0 8px; font-size: 20px; }
+.flow-route-sidebar > header .button { width: 100%; min-height: 44px; margin-bottom: 8px; }
+.flow-route-choice { width: 100%; min-height: 44px; display: grid; gap: 4px; padding: 12px; margin-bottom: 6px; text-align: left; font: inherit; background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-card-radius); cursor: pointer; touch-action: manipulation; }
+.flow-route-choice > strong { font-size: 18px; }
+.flow-route-choice > span, .flow-route-choice > small { font-size: 12px; }
+.flow-route-choice[aria-pressed=true] { background: var(--kui-selected); border-color: var(--color-brand-primary); }
+.flow-selected-route { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.flow-selected-route > section { flex: 1; min-height: 0; }
+.flow-conference { margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.flow-conference .flow-section-heading { flex: none; }
+.flow-conference-summary { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 10px; background: var(--kui-neutral); border-radius: var(--kui-card-radius); font-size: 13px; flex: none; }
+.flow-conference .flow-counter-orders { display: block; margin: 0; flex: 1; }
+.flow-conference .flow-counter-order { padding: 10px; margin-bottom: 8px; }
+.flow-counter-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.flow-counter-line > .physical-pizza { flex: 1 1 300px; margin: 0; }
+.flow-counter-line > span { font-size: 12px; }
+.flow-counter-line .button { min-height: 44px; flex: none; }
+.flow-counter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; flex: none; }
+.flow-counter-actions > p { margin: 0; font-size: 12px; }
+.flow-counter-actions .button { min-height: 44px; }
+.flow-route-editor { margin: 0; display: flex; flex-direction: column; }
+.flow-route-editor .flow-route-columns { flex: 1; min-height: 0; }
+.flow-outgoing { background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); padding: 12px; }
+.kitchen-board .kb-card { gap: 5px; padding: 10px; }
+.kitchen-board .op-order-context { margin: 0 0 3px; }
+@media (max-width: 700px) {
+  .flow-counter-layout { grid-template-columns: 150px minmax(0, 1fr); }
+  .flow-route-sidebar { padding: 6px; }
+  .flow-route-choice { padding: 8px; }
+  .flow-workspace .flow-production-columns { grid-template-columns: 1fr 1fr; }
+  .flow-route-dock .flow-route-columns { grid-template-columns: 1fr 1fr; }
+}

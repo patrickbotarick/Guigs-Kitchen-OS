@@ -12,3 +12,4 @@ apps/api/prisma/*.db-*
 coverage/
 .vite/
 .setup-state.json
+artifacts/

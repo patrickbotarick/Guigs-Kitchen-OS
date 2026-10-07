@@ -13,18 +13,20 @@ import { DispatchService } from './dispatch.js';
 import { OperatorSessionService, hashOperatorPin } from './operator-sessions.js';
 import { OrderService } from './orders.js';
 import { createApp } from './app.js';
+import { ProductionSettingsService } from './production-settings.js';
 
 const name = `test-operational-flow-${randomUUID()}.db`, path = resolve(process.cwd(), 'prisma', name);
 const prisma = new PrismaClient({ datasources: { db: { url: `file:./${name}` } } }), creation = new StructuredOrderService(prisma), commands = new PizzaCommandService(prisma), routes = new DispatchRouteService(prisma), finishing = new FinishingService(prisma), dispatch = new DispatchService(prisma), sessions = new OperatorSessionService(prisma);
-const events: unknown[] = [], app = createApp(new OrderService(prisma), (_, order) => events.push(order), 'http://localhost:5173', creation, commands, event => events.push(event), sessions, undefined, finishing, dispatch, routes, event => events.push(event));
+const events: unknown[] = [], app = createApp(new OrderService(prisma), (_, order) => events.push(order), 'http://localhost:5173', creation, commands, event => events.push(event), sessions, undefined, finishing, dispatch, routes, event => events.push(event), new ProductionSettingsService(prisma), event => events.push(event));
 const actors: { token: string; deviceKey: string }[] = [];
+const productionSettings = new ProductionSettingsService(prisma);
 beforeAll(async () => {
   writeFileSync(path, ''); const directory = resolve(process.cwd(), 'prisma/migrations');
   for (const name of readdirSync(directory).filter(name => /^\d/.test(name)).sort()) for (const sql of readFileSync(resolve(directory, name, 'migration.sql'), 'utf8').split(';').map(part => part.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(sql);
   for (let index = 0; index < 3; index++) { await prisma.operator.create({ data: { name: `Fluxo ${index}`, pinHash: await hashOperatorPin(String(9100 + index)) } }); const deviceKey = randomUUID(), session = await sessions.signIn({ pin: String(9100 + index), workstationDeviceKey: deviceKey }, randomUUID()); const actor = { token: session.token, deviceKey }; await sessions.heartbeat(actor); await sessions.setAvailability(actor, false); actors.push(actor); }
 });
 // Each scenario represents active stations, even when earlier tests run slowly.
-beforeEach(async () => { for (const actor of actors) await sessions.heartbeat(actor); });
+beforeEach(async () => { for (const actor of actors) await sessions.heartbeat(actor); await prisma.productionStationSettings.update({ where: { stationKey: 'PRODUCTION' }, data: { autoOvenEntry: true } }); });
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
 async function fresh(count = 1, extras = false, type: 'DELIVERY' | 'PICKUP' = 'DELIVERY') { return (await creation.create({ clientRequestId: randomUUID(), customerName: 'Fluxo físico', customerPhone: '', channel: 'COUNTER', fulfillmentType: type, notes: '', pizzas: Array.from({ length: count }, () => ({ size: 'GRANDE' as const, composition: 'WHOLE' as const, firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null })), extras: extras ? [{ extraCatalogId: 'coca-cola-2l', quantity: 2, notes: null }] : [] })).order; }
 async function current(order: Order) { return (await creation.get(order.id))!; }
@@ -37,6 +39,53 @@ async function conference(order: Order, input: Omit<FinishingCommandInput, 'expe
 async function prepare(order: Order) { order = await current(order); for (const item of order.items) if (item.kind === 'PIZZA') order = await conference(order, { command: 'CHECK_PIZZA', pizzaId: item.id, expectedItemVersion: item.production.version } as FinishingCommandInput); for (const item of order.items) if (item.kind === 'EXTRA') order = await conference(order, { command: 'CHECK_EXTRA', extraId: item.id, expectedItemVersion: item.version, checkedQuantity: item.quantity } as FinishingCommandInput); order = await conference(order, { command: 'CONFIRM_PACKAGING' }); return conference(order, { command: 'RELEASE_TO_DISPATCH' }); }
 
 describe('produção física e rotas operacionais', () => {
+  it('endpoint de preferência exige sessão, valida payload e publica apenas após commit', async () => {
+    events.length = 0;
+    const settings = await productionSettings.get(), input = { command: 'SET_AUTO_OVEN_ENTRY', autoOvenEntry: false, expectedVersion: settings.version, clientCommandId: randomUUID() }, headers = { Authorization: `Bearer ${actors[1].token}`, 'X-Workstation-Device-Key': actors[1].deviceKey };
+    expect((await request(app).get('/kitchen/production/settings')).body).toEqual(settings);
+    expect((await request(app).post('/kitchen/production/settings/commands').send(input)).status).toBe(401);
+    expect((await request(app).post('/kitchen/production/settings/commands').set(headers).send({ ...input, autoOvenEntry: 'false' })).status).toBe(400);
+    const response = await request(app).post('/kitchen/production/settings/commands').set(headers).send(input); expect(response.status).toBe(200);
+    expect(await productionSettings.get()).toEqual(response.body.productionSettings); expect(events).toHaveLength(1);
+    expect((await request(app).post('/kitchen/production/settings/commands').set(headers).send(input)).body.replayed).toBe(true); expect(events).toHaveLength(1);
+    expect((await request(app).post('/kitchen/production/settings/commands').set(headers).send({ ...input, clientCommandId: randomUUID() })).status).toBe(409); expect(events).toHaveLength(1);
+  });
+  it('preferência compartilhada tem padrão automático e autoria persistente', async () => {
+    const previous = await productionSettings.get(); expect(previous.autoOvenEntry).toBe(true);
+    const result = await productionSettings.execute({ command: 'SET_AUTO_OVEN_ENTRY', autoOvenEntry: false, expectedVersion: previous.version, clientCommandId: randomUUID() }, actors[1]);
+    expect(await new ProductionSettingsService(prisma).get()).toEqual(result.productionSettings);
+    const actor = await sessions.validate(actors[1]);
+    expect(await prisma.productionStationSettings.findUnique({ where: { stationKey: 'PRODUCTION' } })).toMatchObject({ updatedByOperatorId: actor.operatorId, updatedByWorkstationId: actor.workstationId, updatedBySessionId: actor.sessionId });
+  });
+  it('entrada manual conclui montagem sem iniciar timer e ENTER_OVEN inicia depois', async () => {
+    const settings = await productionSettings.get(); await productionSettings.execute({ command: 'SET_AUTO_OVEN_ENTRY', autoOvenEntry: false, expectedVersion: settings.version, clientCommandId: randomUUID() }, actors[1]);
+    let order = await pizza(await fresh(), 'START_ASSEMBLY'); order = await pizza(order, 'SEND_TO_OVEN');
+    expect(order.items[0]).toMatchObject({ releasedAt: expect.any(String), production: { state: 'WAITING_OVEN', assemblyCompletedAt: expect.any(String), ovenStartedAt: null, ovenExpectedEndAt: null } });
+    expect(order.status).toBe('OVEN');
+    expect(await prisma.pizzaProductionHistory.findFirst({ where: { pizzaId: order.items[0].id, eventType: 'SEND_TO_OVEN' } })).toMatchObject({ metadata: { assemblyCompleted: true, ovenStarted: false, autoOvenEntry: false, productionSettingsVersion: settings.version + 1, capacityPolicy: 'INDICATOR' } });
+    order = await pizza(order, 'ENTER_OVEN'); expect(order.items[0]).toMatchObject({ production: { state: 'IN_OVEN', ovenStartedAt: expect.any(String), ovenExpectedEndAt: expect.any(String) } });
+  });
+  it('preferência usa CAS, replay e conflito de conteúdo sem duplicar auditoria', async () => {
+    const settings = await productionSettings.get(), input = { command: 'SET_AUTO_OVEN_ENTRY' as const, autoOvenEntry: false, expectedVersion: settings.version, clientCommandId: randomUUID() };
+    const first = await productionSettings.execute(input, actors[1]); expect((await productionSettings.execute(input, actors[1])).replayed).toBe(true);
+    await expect(productionSettings.execute({ ...input, autoOvenEntry: true }, actors[1])).rejects.toThrow('outro conteúdo');
+    await expect(productionSettings.execute({ ...input, clientCommandId: randomUUID() }, actors[2])).rejects.toThrow('outro terminal');
+    expect(await productionSettings.get()).toEqual(first.productionSettings);
+    expect(await prisma.operatorSessionEvent.count({ where: { eventType: 'PRODUCTION_SETTINGS_CHANGED', metadata: { path: '$.clientCommandId', equals: input.clientCommandId } } })).toBe(1);
+  });
+  it('alterações simultâneas da preferência aceitam somente uma versão', async () => {
+    const settings = await productionSettings.get(), input = { command: 'SET_AUTO_OVEN_ENTRY' as const, autoOvenEntry: false, expectedVersion: settings.version };
+    const results = await Promise.allSettled(actors.slice(1).map(actor => productionSettings.execute({ ...input, clientCommandId: randomUUID() }, actor)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect((await productionSettings.get()).version).toBe(settings.version + 1);
+  });
+  it('falha no recibo desfaz preferência e auditoria', async () => {
+    const previous = await productionSettings.get(), count = await prisma.operatorSessionEvent.count({ where: { eventType: 'PRODUCTION_SETTINGS_CHANGED' } });
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER settings_failure BEFORE INSERT ON ProductionSettingsReceipt BEGIN SELECT RAISE(ABORT, 'fixture rollback'); END`);
+    try { await expect(productionSettings.execute({ command: 'SET_AUTO_OVEN_ENTRY', autoOvenEntry: false, expectedVersion: previous.version, clientCommandId: randomUUID() }, actors[1])).rejects.toThrow(); }
+    finally { await prisma.$executeRawUnsafe('DROP TRIGGER settings_failure'); }
+    expect(await productionSettings.get()).toEqual(previous); expect(await prisma.operatorSessionEvent.count({ where: { eventType: 'PRODUCTION_SETTINGS_CHANGED' } })).toBe(count);
+  });
   it('criação normal usa fluxo 2; SEND_TO_OVEN inicia forno e encerra carga atômica com timestamps/autoria', async () => {
     let order = await fresh(); expect(order.operationalFlowVersion).toBe(2); order = await pizza(order, 'START_ASSEMBLY'); order = await pizza(order, 'SEND_TO_OVEN'); const item = order.items[0]; if (item.kind !== 'PIZZA') throw new Error('Pizza esperada'); expect(item.production).toMatchObject({ state: 'IN_OVEN', assemblyCompletedAt: expect.any(String), ovenStartedAt: item.production.assemblyCompletedAt, ovenExpectedEndAt: expect.any(String) }); expect(item.releasedAt).toBe(item.production.ovenStartedAt); expect(item.production.ovenOperator).toBeDefined(); expect(await prisma.pizzaProductionHistory.count({ where: { pizzaId: item.id, eventType: 'SEND_TO_OVEN' } })).toBe(1);
   });

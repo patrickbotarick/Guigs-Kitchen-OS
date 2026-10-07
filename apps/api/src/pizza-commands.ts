@@ -46,9 +46,11 @@ export class PizzaCommandService {
           if (!order || order.schemaVersion !== 2 || !pizza || pizza.orderId !== orderId) throw new PizzaCommandNotFoundError('Pizza não encontrada neste pedido v2.');
           const assignmentCommand = input.command === 'CLAIM_PIZZA' || input.command === 'RELEASE_PIZZA';
           const allTransitions = { ...assemblyCommandTransitions, ...ovenCommandTransitions };
-          const directOven = order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN';
+          const settings = order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN'
+            ? await tx.productionStationSettings.findUnique({ where: { stationKey: 'PRODUCTION' } }) : null;
+          const directOven = order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN' && (settings?.autoOvenEntry ?? true);
           const transition = assignmentCommand ? { from: pizza.state, to: pizza.state } : directOven ? { from: 'ASSEMBLING' as const, to: 'IN_OVEN' as const } : input.command === 'FINISH_PIZZA' && pizza.state === 'FINISHING' ? { from: 'FINISHING' as const, to: 'FINISHED' as const } : allTransitions[input.command as keyof typeof allTransitions];
-          if (directOven && currentActor.view.presenceStatus !== 'ONLINE') throw new PizzaCommandConflictError('Confirme presença para concluir montagem e iniciar forno.');
+          if (order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN' && currentActor.view.presenceStatus !== 'ONLINE') throw new PizzaCommandConflictError('Confirme presença para concluir montagem.');
           if (isLogisticsOrderStatus(order.status) || order.status === 'CANCELLED' || pizza.state !== input.expectedState || pizza.version !== input.expectedVersion || pizza.state !== transition.from || (!assignmentCommand && !canTransitionPizza(pizza.state, transition.to))) {
             throw new PizzaCommandConflictError('Esta pizza foi atualizada ou o comando não é permitido no estado atual. Recarregue os dados.');
           }
@@ -85,7 +87,7 @@ export class PizzaCommandService {
             ...(input.command === 'ENTER_OVEN' || directOven ? { ovenStartedAt: now, ovenExpectedEndAt: new Date(now.getTime() + (this.ovenMinutes ?? oven.defaultOvenMinutes) * 60000) } : {}),
             ...(input.command === 'REMOVE_FROM_OVEN' ? { bakedAt: now } : {}),
             ...(input.command === 'FINISH_PIZZA' ? { finishingStartedAt: pizza.finishingStartedAt ?? pizza.bakedAt ?? now, finishedAt: now } : {}),
-            ...(directOven ? { releasedAt: now } : {}),
+            ...(order.operationalFlowVersion === 2 && input.command === 'SEND_TO_OVEN' ? { releasedAt: now } : {}),
           } });
           if (changed.count !== 1) throw new PizzaCommandConflictError('Esta pizza foi atualizada em outro dispositivo.');
           if (claiming && !assignmentCommand) await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: 'CLAIMED', fromState: pizza.state, toState: pizza.state, changedAt: now,
@@ -93,7 +95,7 @@ export class PizzaCommandService {
             commandId: `${clientCommandId}:claim`, itemVersion: pizza.version + 1, reason: 'Reserva atômica ao iniciar montagem' } });
           await tx.pizzaProductionHistory.create({ data: { pizzaId, eventType: input.command === 'CLAIM_PIZZA' ? 'CLAIMED' : releasing ? 'RELEASED' : input.command === 'FINISH_PIZZA' ? 'PIZZA_FINISHED' : input.command, fromState: pizza.state, toState: transition.to, changedAt: now,
             actorType: 'OPERATOR', actorId: actor.operatorId, operatorId: actor.operatorId, workstationId: actor.workstationId, operatorSessionId: actor.sessionId,
-            commandId: clientCommandId, itemVersion: pizza.version + 1, reason: ovenCommand ? 'Comando operacional de forno/acabamento' : 'Comando de montagem via Assembly', ...(directOven ? { metadata: { assemblyCompleted: true, ovenStarted: true, capacityPolicy: 'INDICATOR' } } : {}) } });
+            commandId: clientCommandId, itemVersion: pizza.version + 1, reason: ovenCommand ? 'Comando operacional de forno/acabamento' : 'Comando de montagem via Assembly', ...(input.command === 'SEND_TO_OVEN' && order.operationalFlowVersion === 2 ? { metadata: { assemblyCompleted: true, ovenStarted: directOven, autoOvenEntry: directOven, productionSettingsVersion: settings?.version ?? 0, capacityPolicy: 'INDICATOR' } } : {}) } });
           const pizzas = await tx.pizzaItem.findMany({ where: { orderId }, select: { state: true } });
           const extras = await tx.extraItem.findMany({ where: { orderId }, select: { state: true, quantity: true, checkedQuantity: true } });
           const status = deriveOrderProductionState({ pizzas: pizzas.map(pizza => pizza.state), extras, packingConfirmed: Boolean(order.packingFinishedAt && order.packingFinishedBy) });

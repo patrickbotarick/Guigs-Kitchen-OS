@@ -338,6 +338,24 @@ model DispatchRouteReceipt {
   createdAt DateTime @default(now())
 }
 
+// One shared logical production station. Physical terminals retain their existing identity.
+model ProductionStationSettings {
+  stationKey String @id
+  autoOvenEntry Boolean @default(true)
+  version Int @default(0)
+  updatedAt DateTime @updatedAt
+  updatedByOperatorId String?
+  updatedByWorkstationId String?
+  updatedBySessionId String?
+}
+
+model ProductionSettingsReceipt {
+  clientCommandId String @id
+  payloadHash String
+  responseSnapshot Json
+  createdAt DateTime @default(now())
+}
+
 model Operator {
   id String @id @default(cuid())
   name String @unique

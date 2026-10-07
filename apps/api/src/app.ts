@@ -21,6 +21,8 @@ import { dispatchNotifications, type DispatchService } from './dispatch.js';
 import { routeCommandSchema } from '@guigs/shared';
 import type { RouteUpdated } from '@guigs/shared';
 import type { DispatchRouteService } from './routes.js';
+import { productionSettingsCommandSchema, type ProductionSettingsUpdated } from '@guigs/shared';
+import type { ProductionSettingsService } from './production-settings.js';
 
 export interface OrdersPort {
   create(input: z.infer<typeof createOrderSchema>): Promise<OrderView>;
@@ -30,7 +32,7 @@ export interface OrdersPort {
   transition(id: string, input: TransitionOrderInput): Promise<OrderView>;
 }
 
-export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat' | 'overview'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>, routes?: DispatchRouteService, publishRoute?: (event: RouteUpdated) => void) {
+export function createApp(orders: OrdersPort, publish: (event: 'order.created' | 'order.updated', order: OrderView | Order) => void, webOrigin: string | ((origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => void), structured?: Pick<StructuredOrderService, 'create' | 'get' | 'listActive'>, commands?: Pick<PizzaCommandService, 'execute'>, publishKitchen?: (notification: KitchenNotification) => void, operators?: Pick<OperatorSessionService, 'signIn' | 'current' | 'end' | 'setAvailability' | 'heartbeat' | 'overview'>, recovery?: Pick<SupervisorRecoveryService, 'execute' | 'targets'>, finishing?: Pick<FinishingService, 'execute'>, dispatch?: Pick<DispatchService, 'execute'>, routes?: DispatchRouteService, publishRoute?: (event: RouteUpdated) => void, productionSettings?: ProductionSettingsService, publishSettings?: (event: ProductionSettingsUpdated) => void) {
   const app = express();
   app.use(cors({ origin: webOrigin }));
   // A valid 30-pizza structured request can exceed the legacy 100kb limit.
@@ -58,6 +60,19 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
     catch (error) { next(error); }
   });
   const credentials = (req: express.Request): SessionCredentials => ({ token: req.get('Authorization')?.replace(/^Bearer /, '') ?? '', deviceKey: req.get('X-Workstation-Device-Key') ?? '' });
+  if (productionSettings) {
+    app.get('/kitchen/production/settings', async (_req, res, next) => {
+      try { res.set('Cache-Control', 'no-store').json(await productionSettings.get()); } catch (error) { next(error); }
+    });
+    app.post('/kitchen/production/settings/commands', async (req, res, next) => {
+      try {
+        const result = await productionSettings.execute(productionSettingsCommandSchema.parse(req.body), credentials(req));
+        if (!result.replayed) try { publishSettings?.({ eventId: randomUUID(), stationKey: 'PRODUCTION', version: result.productionSettings.version, timestamp: new Date().toISOString() }); }
+        catch (error) { console.error('Falha na notificação da configuração após commit:', error); }
+        res.set('Idempotency-Replayed', String(result.replayed)).json(result);
+      } catch (error) { next(error); }
+    });
+  }
   if (operators) {
     if (typeof operators.overview === 'function') app.get('/operators/overview', async (_req, res, next) => {
       try { res.set('Cache-Control', 'no-store').json(await operators.overview()); } catch (error) { next(error); }
