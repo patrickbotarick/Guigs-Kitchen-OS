@@ -34,7 +34,7 @@ body { margin: 0; min-width: 320px; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
-.app-shell { min-height: 100vh; }
+.app-shell { min-height: 100dvh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); min-height: 82px; padding: 10px max(4vw, 24px); background: var(--color-brand-secondary); color: var(--color-surface); }
 .brand-logo { display: inline-flex; align-items: center; gap: 12px; }
 .brand-logo img { width: 56px; height: 56px; object-fit: contain; border-radius: var(--radius-md); background: var(--color-dark-surface); }

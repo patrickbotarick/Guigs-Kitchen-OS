@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { beforeAll, beforeEach, afterAll, describe, it, expect } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -23,6 +23,8 @@ beforeAll(async () => {
   for (const name of readdirSync(directory).filter(name => /^\d/.test(name)).sort()) for (const sql of readFileSync(resolve(directory, name, 'migration.sql'), 'utf8').split(';').map(part => part.trim()).filter(Boolean)) await prisma.$executeRawUnsafe(sql);
   for (let index = 0; index < 3; index++) { await prisma.operator.create({ data: { name: `Fluxo ${index}`, pinHash: await hashOperatorPin(String(9100 + index)) } }); const deviceKey = randomUUID(), session = await sessions.signIn({ pin: String(9100 + index), workstationDeviceKey: deviceKey }, randomUUID()); const actor = { token: session.token, deviceKey }; await sessions.heartbeat(actor); await sessions.setAvailability(actor, false); actors.push(actor); }
 });
+// Each scenario represents active stations, even when earlier tests run slowly.
+beforeEach(async () => { for (const actor of actors) await sessions.heartbeat(actor); });
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
 async function fresh(count = 1, extras = false, type: 'DELIVERY' | 'PICKUP' = 'DELIVERY') { return (await creation.create({ clientRequestId: randomUUID(), customerName: 'Fluxo físico', customerPhone: '', channel: 'COUNTER', fulfillmentType: type, notes: '', pizzas: Array.from({ length: count }, () => ({ size: 'GRANDE' as const, composition: 'WHOLE' as const, firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null })), extras: extras ? [{ extraCatalogId: 'coca-cola-2l', quantity: 2, notes: null }] : [] })).order; }
 async function current(order: Order) { return (await creation.get(order.id))!; }

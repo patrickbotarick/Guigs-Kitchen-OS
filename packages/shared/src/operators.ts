@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 export const operatorPinSchema = z.string().regex(/^\d{4,8}$/, 'Digite um PIN de 4 a 8 números.');
-export const operatorLoginSchema = z.object({ pin: operatorPinSchema, workstationDeviceKey: z.string().uuid() }).strict();
+export const stationKindSchema = z.enum(['ASSEMBLY', 'PRODUCTION', 'COUNTER', 'SUPERVISION']);
+export type StationKind = z.infer<typeof stationKindSchema>;
+export const operatorLoginSchema = z.object({ pin: operatorPinSchema, workstationDeviceKey: z.string().uuid(), station: stationKindSchema.optional() }).strict();
 export type OperatorLoginInput = z.infer<typeof operatorLoginSchema>;
 export const operatorSessionSchema = z.object({
   sessionId: z.string().min(1), operatorId: z.string().min(1), operatorName: z.string().min(1),
@@ -13,7 +15,7 @@ export const operatorSessionSchema = z.object({
   presenceStatus: z.enum(['ONLINE', 'STALE', 'OFFLINE']).default('OFFLINE'),
   heartbeatIntervalMs: z.number().int().positive().default(20000),
 }).strict();
-export const operatorAvailabilitySchema = z.object({ available: z.boolean() }).strict();
+export const operatorAvailabilitySchema = z.object({ available: z.boolean().optional(), station: stationKindSchema.optional() }).strict().refine(value => value.available !== undefined || value.station !== undefined, 'Informe disponibilidade ou estação.');
 export type OperationalSession = z.infer<typeof operatorSessionSchema>;
 export const operatorOverviewSchema = z.object({
   operatorId: z.string().min(1), operatorName: z.string().min(1), role: z.enum(['ASSEMBLER', 'SUPERVISOR']),

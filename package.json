@@ -21,6 +21,7 @@
     "smoke": "node scripts/smoke.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:ui:browser": "node scripts/ui-visual-browser-smoke.mjs",
+    "test:ux:round1": "node scripts/ux-round1-browser-smoke.mjs",
     "test:assembly": "vitest run apps/web/src/features/kitchen/assembly.test.ts apps/web/src/features/kitchen/assembly-read.test.ts apps/web/src/features/kitchen/realtime.test.ts",
     "test:oven": "vitest run apps/web/src/features/oven/oven.test.ts",
     "test:dispatch": "vitest run apps/web/src/features/dispatch/dispatch.test.ts",

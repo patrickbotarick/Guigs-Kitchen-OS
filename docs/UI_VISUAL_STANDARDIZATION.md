@@ -1,5 +1,60 @@
 # Padrão visual do Guig's Kitchen OS
 
+## Regra vigente — Rodada 1 pós-piloto Android, 07/10/2026
+
+**`/kitchen/assembly` é a referência visual oficial de toda a aplicação operacional**, incluindo telas futuras. Auditar esta tela e seus SVGs antes de introduzir estilos; adaptar as outras telas à Montagem. As seções anteriores a esta rodada, abaixo, são histórico de 06/10/2026.
+
+A auditoria preservou fonte Inter/system-ui/-apple-system/Segoe UI/sans-serif, fundo off-white `#f4f3f1`, superfície branca, carvão `#141416`, secundário `#66636a`, linha `#e6e5e7`, vermelho Guig's `#ab2933`, verde funcional e estados neutros. Mantêm-se os raios de painel/card/botão 7/6/5 px, sombra discreta de seleção, espaçamento base de 8 px e hierarquia tipográfica descrita na tabela. Não há nova família, biblioteca de ícones ou paleta paralela.
+
+### Menu e nomenclatura
+
+`OperationalNavigation` é o mapa compartilhado: o mesmo menu, ordem, nome da página atual e indicação `aria-current="page"` em todas as seis telas.
+
+| Área | Nome visível | Destino |
+| --- | --- | --- |
+| Cozinha | Visão geral | `/kitchen` |
+| Cozinha | Montagem | `/kitchen/assembly` |
+| Cozinha | Forno e Finalização | `/kitchen/finishing` |
+| Balcão | Despacho | `/counter/dispatch` |
+| Ferramentas | Simulador de Pedido | `/orders/new` |
+| Ferramentas, apenas SUPERVISOR | Recuperação | `/kitchen/assembly/recovery` |
+
+A raiz `/` abre Visão geral. Em desenvolvimento, ferramentas antigas ficam dentro de **Compatibilidade / Dev**, fechado por padrão, com avisos explícitos nas telas legadas. O painel antigo está em `/compatibility`; o formulário permanece em `/orders/new/legacy`; a demonstração de montagem permanece em `/kitchen/assembly/dev`. Nenhum link operacional principal consulta a fila `/orders`. Endpoints, dados e contratos legados continuam preservados.
+
+### Componentes, receita física e toque
+
+`AssemblyIcon` e os SVGs existentes continuam como fonte única de ícones. `PhysicalPizzaSummary` apresenta o snapshot histórico no Balcão: número, tamanho, composição, sabores, borda, modificadores por metade e observação. Remoção usa vermelho `--kui-danger`; adição usa `--kui-added: #330e7d`, extraído do SVG oficial de adição da Montagem; dados comuns ficam neutros. Não consulta o catálogo atual para reconstruir uma receita antiga.
+
+Botões, links operacionais e summaries têm área mínima **44×44 px**. Ações principais mantêm 55 px, campos 48 px e teclado PIN 66 px. Em Montagem, aumentar a área de disponibilidade/troca/encerramento/atualização e confirmações conserva os ícones pequenos, a grade, as cores e as três colunas aprovadas. O antigo botão persistente “Concluir montagem” foi retirado: `Enviar pro forno` já encerra a montagem da pizza. O rodapé mostra progresso passivo. O controle da demonstração local continua restrito à compatibilidade.
+
+Recuperação usa as superfícies, campos, bordas, raios, botões e espaçamentos comuns. A Visão geral conserva Fila/Montagem/Forno/Finalizados, com identificação discreta e acesso contextual à Recuperação para SUPERVISOR. ASSEMBLER continua bloqueado pela autorização existente.
+
+### Contexto da estação e presença
+
+`OperatorSessionProvider` centraliza a sessão e o heartbeat durante navegação. O contexto da aba visível vai ao backend no login, na troca de área e ao retomar o foco. Abas em segundo plano continuam renovando presença, sem substituir o contexto ativo. Alterar disponibilidade envia também o contexto da própria estação. A workstation persiste `stationKind` e `receivingEnabled`; nomes pessoais não definem elegibilidade e as roles continuam ASSEMBLER/SUPERVISOR.
+
+| Contexto | Recebimento automático |
+| --- | --- |
+| Montagem / ASSEMBLY | Habilitado inicialmente para ASSEMBLER; suspensão manual persiste após novo login na mesma estação |
+| Forno e Finalização / PRODUCTION | Desabilitado |
+| Despacho / COUNTER | Desabilitado |
+| Visão geral, Recuperação e ferramentas / SUPERVISION | Desabilitado |
+| Operador SUPERVISOR, em qualquer estação | Não recebe automaticamente |
+
+Trocar de contexto não recria sessão, não muda a chave do terminal e não libera reservas. Ao voltar de outro contexto para Montagem, o recebimento inicia habilitado. Clientes legados que omitem o contexto usam a workstation persistida; workstations novas sem contexto mantêm o padrão ASSEMBLY por compatibilidade. Distribuição e destinos de recuperação exigem estação Montagem, preferência habilitada, role ASSEMBLER e presença válida.
+
+Migration aditiva `20261007040000_workstation_receiving`: duas colunas, sem remoção de dados. Gerar Prisma e aplicar migrations antes de iniciar a nova API. Nenhuma dependência ou `package-lock.json` alterado.
+
+### Scroll e validação
+
+O shell usa `100dvh`, acompanhando a altura web efetiva do Android. Não se esconde overflow para mascarar conteúdo. Montagem conserva as áreas de scroll aprovadas; outras telas mantêm scroll do documento. O menu limita sua altura e permite scroll quando necessário; na fila de Montagem, sua altura considera a posição do acionador, evitando scroll residual do documento. Forno/Rotas e Balcão ainda podem exigir scroll longo; a reorganização estrutural fica para Rodada 2.
+
+`npm run test:ux:round1` cria banco descartável, cinco sessões em contextos separados, receita inteira com borda/remoção/adição, meio a meio com adicional na segunda metade e Broto. Valida distribuição, navegação, estado ativo, supervisor/negação, ausência do botão obsoleto, alvos de toque e overflow em 1024×768, 1280×800 e 1366×768. Capturas e `validation.json` ficam em `artifacts/ui-audit/round1/`, ignorados pelo Git. `ROUND1_ANDROID=1` mantém temporariamente API 3360/Vite 5190 para conferência real no Android com `adb reverse`; criar `android-finish` no diretório de capturas encerra o ambiente, com limite de 30 minutos. O relatório de execução reúne resultados e evidências.
+
+Pendentes: segunda rodada específica de Forno/Finalização/Rotas e Balcão; avaliação em tablet físico; investigação da troca de workstation do Atendente após retomada do AVD. Essa ocorrência não foi atribuída a bug da aplicação nem corrigida nesta rodada. Fase 6 não iniciada.
+
+## Histórico — padronização de 06/10/2026
+
 **Atualização do fluxo em 06/10/2026:** os tokens e a Montagem abaixo continuam como referência. O quadro `/kitchen` foi simplificado para quatro colunas; Forno e Finalização usam uma única estação em `/kitchen/finishing`; rotas/conferência/embalagem/despacho pertencem a `/counter/dispatch`. Os detalhes de antigas telas abaixo são registro histórico. `test:ui:browser` agora executa `operational-flow-browser-smoke.mjs`, com fluxo persistente, redirects e capturas em 1024×768, 1280×800 e 1366×768 no diretório temporário `guigs-flow-v2-validation`. Ver [contrato vigente](KITCHEN_OPERATION_FLOW_V2.md).
 
 Referência oficial: **`/kitchen/assembly`**, auditada no código e no navegador em 06/10/2026. A Montagem permanece intacta. Esta rodada aproxima Balcão/Fila, Forno, Finalização e Despacho da referência, sem alterar domínio ou iniciar a Fase 6.

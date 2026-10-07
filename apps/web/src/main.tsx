@@ -12,6 +12,8 @@ import { KitchenSimulatorPage } from './features/kitchen/pages/KitchenSimulatorP
 import { KitchenRecoveryPage } from './features/kitchen/pages/KitchenRecoveryPage';
 import { ProductionStation } from './features/kitchen/ProductionStation';
 import { CounterDispatchPage } from './features/dispatch/CounterDispatchPage';
+import { OperationalNavigation } from './components/OperationalNavigation';
+import { OperatorSessionProvider } from './features/kitchen/OperatorSessionProvider';
 import './style.css';
 import './operational-ui.css';
 
@@ -20,19 +22,14 @@ function App() {
   const assembly = location.pathname === '/kitchen/assembly' || location.pathname.startsWith('/kitchen/assembly/') || location.pathname === '/kitchen/oven' || location.pathname === '/kitchen/finishing' || location.pathname === '/kitchen/dispatch' || location.pathname === '/counter/dispatch';
   return <div className="app-shell">
     {!assembly && <header className="topbar">
-      <Link className="brand" to="/" aria-label="Guig's Kitchen, voltar ao painel"><BrandLogo /></Link>
-      <nav aria-label="Navegação principal">
-        <span>Balcão</span><Link className={location.pathname === '/' ? 'active' : ''} to="/">Pedidos</Link>
-        <Link className={location.pathname === '/orders/new' ? 'active' : ''} to="/orders/new">Simulador</Link><Link to="/counter/dispatch">Despacho / Rotas</Link>
-        <span>Cozinha</span><Link className={location.pathname === '/kitchen' ? 'active' : ''} to="/kitchen">Visão geral</Link>
-        <Link to="/kitchen/assembly">Montagem</Link>
-        <Link to="/kitchen/finishing">Forno e Finalização</Link>
-      </nav>
+      <Link className="brand" to="/kitchen" aria-label="Guig's Kitchen, visão geral"><BrandLogo /></Link>
+      <OperationalNavigation />
     </header>}
     <main><Routes>
-      <Route path="/" element={<Dashboard />} />
+      <Route path="/" element={<Navigate to="/kitchen" replace />} />
+      <Route path="/compatibility" element={<><p className="legacy-banner">Compatibilidade / Dev · dados do fluxo legado. <Link to="/counter/dispatch">Voltar ao Despacho</Link></p><Dashboard /></>} />
       <Route path="/orders/new" element={<NewOrder />} />
-      <Route path="/orders/new/legacy" element={<LegacyNewOrder />} />
+      <Route path="/orders/new/legacy" element={<><p className="legacy-banner">Compatibilidade / Dev · entrada de pedidos legados. <Link to="/orders/new">Voltar ao Simulador de Pedido</Link></p><LegacyNewOrder /></>} />
       <Route path="/kitchen" element={<Kitchen />} />
       <Route path="/kitchen/oven" element={<Navigate to="/kitchen/finishing" replace />} />
       <Route path="/kitchen/finishing" element={<ProductionStation />} /><Route path="/kitchen/dispatch" element={<Navigate to="/counter/dispatch" replace />} /><Route path="/counter/dispatch" element={<CounterDispatchPage />} />
@@ -45,4 +42,4 @@ function App() {
   </div>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><App /></BrowserRouter></React.StrictMode>);
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><OperatorSessionProvider><App /></OperatorSessionProvider></BrowserRouter></React.StrictMode>);

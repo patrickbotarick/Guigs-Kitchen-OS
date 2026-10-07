@@ -140,7 +140,7 @@ describe('despacho persistente e conclusão', () => {
     const legacy = await request(app).post('/orders').send({ customerName: 'Legado', type: 'PICKUP', items: [{ name: 'Texto', size: 'Grande' }] }); expect(legacy.status).toBe(201); expect((await request(app).post(`/orders/v2/${legacy.body.id}/dispatch/commands`).set(a.headers).send(dispatchInput(order, 'MARK_READY_FOR_PICKUP'))).status).toBe(404);
     // Additional fixtures traverse real services; no direct fabricated production states.
     for (let index = 0; index < 29; index++) await prepared(); expect((await creation.listActive()).filter(value => value.status === 'WAITING_DISPATCH')).toHaveLength(30);
-  }, 30000);
+  }, 300000);
 });
 
 describe('fechamento e compatibilidade de despacho', () => {

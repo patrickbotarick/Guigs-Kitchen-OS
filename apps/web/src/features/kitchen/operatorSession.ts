@@ -1,4 +1,4 @@
-import { operatorLoginResultSchema, operatorSessionSchema, operatorLoginSchema, type OperationalSession } from '@guigs/shared';
+import { operatorLoginResultSchema, operatorSessionSchema, operatorLoginSchema, type OperationalSession, type StationKind } from '@guigs/shared';
 import { apiUrl } from '../../api';
 import { clientId } from '../../utils/clientId';
 
@@ -33,12 +33,13 @@ async function call(method: string, credentials?: SessionCredentials, body?: unk
     return data;
   } finally { clearTimeout(timeout); }
 }
-export async function loginOperator(pin: string) {
-  const result = operatorLoginResultSchema.parse(await call('POST', undefined, { pin, workstationDeviceKey: workstationDeviceKey() }));
+export async function loginOperator(pin: string, station: StationKind) {
+  const result = operatorLoginResultSchema.parse(await call('POST', undefined, { pin, workstationDeviceKey: workstationDeviceKey(), station }));
   localStorage.setItem(sessionStorageKey, result.token); return result;
 }
 export async function validateOperatorSession(credentials: SessionCredentials): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('GET', credentials)); }
-export async function setOperatorAvailability(credentials: SessionCredentials, available: boolean): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('PATCH', credentials, { available })); }
+export async function setOperatorAvailability(credentials: SessionCredentials, available: boolean, station?: StationKind): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('PATCH', credentials, { available, ...(station ? { station } : {}) })); }
+export async function setOperatorStation(credentials: SessionCredentials, station: StationKind): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('PATCH', credentials, { station })); }
 export async function endOperatorSession(credentials: SessionCredentials) { await call('DELETE', credentials); invalidateSession(credentials.token); }
 export async function heartbeatOperatorSession(credentials: SessionCredentials): Promise<OperationalSession> { return operatorSessionSchema.parse(await call('POST', credentials, {}, '/operators/session/heartbeat')); }
 export async function recoveryTargets(credentials: SessionCredentials) { return call('GET', credentials, undefined, '/operators/recovery-targets'); }

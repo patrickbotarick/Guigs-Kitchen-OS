@@ -66,7 +66,7 @@ export function createApp(orders: OrdersPort, publish: (event: 'order.created' |
       try { z.object({}).strict().parse(req.body); res.set('Cache-Control', 'no-store').json(await operators.heartbeat(credentials(req))); } catch (error) { next(error); }
     });
     app.patch('/operators/session', async (req, res, next) => {
-      try { res.set('Cache-Control', 'no-store').json(await operators.setAvailability(credentials(req), operatorAvailabilitySchema.parse(req.body).available)); } catch (error) { next(error); }
+      try { const input = operatorAvailabilitySchema.parse(req.body); res.set('Cache-Control', 'no-store').json(await operators.setAvailability(credentials(req), input.available, input.station)); } catch (error) { next(error); }
     });
     app.post('/operators/session', async (req, res, next) => {
       try { res.set('Cache-Control', 'no-store').status(201).json(await operators.signIn(operatorLoginSchema.parse(req.body), req.ip ?? 'local')); } catch (error) { next(error); }

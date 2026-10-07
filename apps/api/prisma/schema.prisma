@@ -356,6 +356,8 @@ model Workstation {
   name String
   deviceKey String @unique
   active Boolean @default(true)
+  stationKind String @default("ASSEMBLY")
+  receivingEnabled Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions OperatorSession[]

@@ -16,6 +16,7 @@
   --kui-button-radius: 5px;
   --kui-gap: 8px;
   --kui-selected-shadow: 0 4px 8px #1714191c;
+  --kui-added: #330e7d;
 }
 .oven-page, .page {
   --color-background: var(--kui-background);
@@ -91,7 +92,7 @@
 .oven-notice { background: var(--kui-surface); color: var(--kui-muted); }
 .oven-empty, .page .empty { padding: 24px 12px; background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); color: var(--kui-muted); }
 .oven-page > p[role="status"] { color: var(--kui-muted); padding: 12px; }
-/* Reception retains its navigation and workflows with the same compact surfaces. */
+/* Shared navigation retains Assembly's density and existing colors. */
 .topbar { gap: 12px; min-height: 72px; padding: 8px 16px; }
 .topbar nav { flex-wrap: wrap; justify-content: flex-end; }
 .topbar nav a { min-height: 44px; padding: 12px 10px; border-radius: var(--kui-button-radius); font-weight: 700; }
@@ -181,3 +182,46 @@
   .simulator-submit { align-items: stretch; flex-direction: column; }
   .simulator-submit .button { width: 100%; }
 }
+
+/* Round 1: existing Assembly tokens, compact navigation and physical checks. */
+body { background: var(--kui-background); }
+.op-navigation { position: relative; color: var(--kui-text); font-size: 14px; min-width: 0; }
+.op-navigation > summary, .op-compatibility > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 8px 10px; border: 1px solid var(--kui-line); border-radius: var(--kui-button-radius); background: var(--kui-surface); cursor: pointer; list-style: none; font-weight: 700; touch-action: manipulation; }
+.op-navigation summary::-webkit-details-marker { display: none; }
+.op-menu-label { margin-left: auto; color: var(--kui-muted); font-size: 12px; }
+.op-navigation > nav { position: absolute; inset: 100% 0 auto auto; z-index: 20; width: min(320px, calc(100vw - 32px)); padding: 8px; background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); box-shadow: var(--kui-selected-shadow); max-height: calc(100dvh - 100px); overflow-y: auto; display: block; }
+.op-navigation nav h2 { margin: 8px 10px 4px; font-size: 12px; color: var(--kui-muted); text-transform: uppercase; letter-spacing: .05em; }
+.op-navigation nav a { display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--kui-button-radius); font-size: 14px; font-weight: 600; }
+.op-navigation nav a[aria-current="page"] { background: var(--kui-selected); border-color: var(--color-brand-primary); color: var(--color-brand-primary); }
+.op-navigation summary:focus-visible, .op-navigation a:focus-visible { outline: 3px solid var(--kui-added); outline-offset: 2px; }
+.ka-queue .op-navigation > nav { left: 0; right: auto; max-height: calc(100dvh - 240px); }
+.topbar .op-navigation { min-width: 250px; }
+.legacy-banner { margin: 0; padding: 12px 16px; background: var(--kui-neutral); font-size: 14px; }
+.legacy-banner a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px; color: var(--color-brand-primary); text-decoration: underline; }
+.station-policy { margin: 4px 0; font-size: 12px; color: var(--kui-muted); }
+.physical-pizza { display: grid; gap: 4px; margin-bottom: 6px; }
+.physical-pizza-heading { display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: baseline; }
+.physical-pizza-meta { font-size: 13px; color: var(--kui-muted); }
+.physical-modifiers { display: flex; gap: 4px 8px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.physical-modifier { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: var(--kui-button-radius); background: var(--kui-neutral); font-weight: 600; }
+.physical-modifier .ka-icon { width: 18px; height: 18px; flex: none; }
+.physical-modifier.ka-ingredient-removed { color: var(--kui-danger); }
+.physical-modifier.ka-ingredient-added { color: var(--kui-added); }
+.physical-modifier small { font-size: 12px; font-weight: 500; }
+.physical-pizza-notes { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.recovery-page { max-width: 840px; margin: 0 auto; padding: 16px; }
+.recovery-header { display: flex; justify-content: flex-end; }
+.recovery-page form { padding: 12px; background: var(--kui-surface); border: 1px solid var(--kui-line); border-radius: var(--kui-panel-radius); }
+.recovery-page label { display: grid; gap: 6px; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.recovery-page select, .recovery-page textarea { width: 100%; min-width: 0; min-height: 48px; padding: 8px; border: 1px solid var(--kui-line); border-radius: var(--kui-button-radius); background: var(--kui-surface); }
+.recovery-page textarea { min-height: 88px; resize: vertical; }
+.recovery-actions { flex-wrap: wrap; gap: 8px; }
+.ka-operator-identity button, .ka-queue-footer button, .ka-queue-footer a, .ka-queue > button { min-width: 44px; min-height: 44px; touch-action: manipulation; }
+.ka-operator-identity button { border-radius: var(--kui-button-radius); }
+.ka-operator-identity > a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+.ka-assembly-progress { display: flex; flex-direction: column; justify-content: center; gap: 4px; font-size: 13px; padding: 8px; }
+.ka-assembly-progress span { color: var(--kui-muted); font-size: 12px; }
+.kb-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.kb-header > div { margin-right: auto; }
+.kitchen-board { padding: 12px; }
+@media (max-width: 1100px) { .topbar { flex-wrap: nowrap; } .topbar .brand-product { display: none; } }

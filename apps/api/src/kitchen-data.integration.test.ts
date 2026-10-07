@@ -36,6 +36,7 @@ beforeAll(async () => {
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006150000_auto_assignment/migration.sql'), 'utf8'));
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006190000_dispatch_commands/migration.sql'), 'utf8'));
   await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261006210000_operational_routes/migration.sql'), 'utf8'));
+  await apply(readFileSync(resolve(process.cwd(), 'prisma/migrations/20261007040000_workstation_receiving/migration.sql'), 'utf8'));
 });
 afterAll(async () => {
   await prisma.$disconnect();

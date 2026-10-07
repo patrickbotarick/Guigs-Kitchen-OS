@@ -1,0 +1,2 @@
+ALTER TABLE "Workstation" ADD COLUMN "stationKind" TEXT NOT NULL DEFAULT 'ASSEMBLY';
+ALTER TABLE "Workstation" ADD COLUMN "receivingEnabled" BOOLEAN NOT NULL DEFAULT true;

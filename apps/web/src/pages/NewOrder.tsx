@@ -72,7 +72,7 @@ export function NewOrder() {
   }
 
   return <div className="page form-page">
-    <div className="page-head"><div><div className="eyebrow">SIMULADOR · ENTRADA FUTURA SAIPOS</div><h1 aria-label="Novo pedido de teste">Simulador de Pedido</h1><p>Simula a entrada que futuramente será recebida da Saipos e envia o pedido ao fluxo real do Kitchen OS.</p></div><Link className="text-link" to="/orders/new/legacy">Formulário legado ↗</Link></div>
+    <div className="page-head"><div><div className="eyebrow">SIMULADOR · ENTRADA FUTURA SAIPOS</div><h1 aria-label="Novo pedido de teste">Simulador de Pedido</h1><p>Simula a entrada que futuramente será recebida da Saipos e envia o pedido ao fluxo real do Kitchen OS.</p></div></div>
     {created ? <section className="success" role="status"><div className="success-mark">✓</div><div className="eyebrow">PEDIDO SALVO</div><h2>#{String(created.number).padStart(4, '0')} aguardando montagem</h2><p>Pedido de {created.customerName} salvo com {created.items.filter(item => item.kind === 'PIZZA').length} pizza(s).</p><p>Este pedido pode ser consultado na fila de montagem.</p><div className="actions"><button className="button primary" type="button" onClick={reset}>Criar outro pedido</button><Link className="button secondary" to="/kitchen/assembly">Abrir montagem</Link></div></section> :
       <form onSubmit={event => void submit(event)}>
         <fieldset disabled={saving || pending !== null} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -107,7 +107,7 @@ export function NewOrder() {
           </section>
         </fieldset>
         {error && <div className="alert" role="alert">{error}{pending && <p>O envio ainda não foi confirmado. Tente novamente para recuperar o mesmo pedido; os dados estão preservados.</p>}</div>}
-        <div className="simulator-submit"><div><strong>Resumo do pedido</strong><span>{pizzas.length} {pizzas.length === 1 ? 'pizza' : 'pizzas'} · {extras.reduce((sum, extra) => sum + extra.quantity, 0)} {extras.reduce((sum, extra) => sum + extra.quantity, 0) === 1 ? 'extra' : 'extras'} · {fulfillmentType === 'DELIVERY' ? 'Delivery' : 'Retirada'} · {channel === 'COUNTER' ? 'Balcão' : channel}</span><small>Envia ao POST /orders/v2 e distribui automaticamente para a Montagem.</small></div><button className="button primary" aria-label={pending ? 'Confirmar envio novamente' : 'Criar pedido →'} type="submit" disabled={saving}>{saving ? 'Enviando ao fluxo...' : pending ? 'Confirmar envio novamente' : 'Enviar ao fluxo do Kitchen OS'}</button></div>
+        <div className="simulator-submit"><div><strong>Resumo do pedido</strong><span>{pizzas.length} {pizzas.length === 1 ? 'pizza' : 'pizzas'} · {extras.reduce((sum, extra) => sum + extra.quantity, 0)} {extras.reduce((sum, extra) => sum + extra.quantity, 0) === 1 ? 'extra' : 'extras'} · {fulfillmentType === 'DELIVERY' ? 'Delivery' : 'Retirada'} · {channel === 'COUNTER' ? 'Balcão' : channel}</span><small>Envia o pedido à fila de Montagem.</small></div><button className="button primary" aria-label={pending ? 'Confirmar envio novamente' : 'Criar pedido →'} type="submit" disabled={saving}>{saving ? 'Enviando ao fluxo...' : pending ? 'Confirmar envio novamente' : 'Enviar ao fluxo do Kitchen OS'}</button></div>
       </form>}
   </div>;
 }

@@ -43,6 +43,6 @@ export function CurrentOrder({ order, selectedPizzaId, now, onSelectPizza, onCom
       {order.notes && <div className="ka-order-note" aria-label="Observação do pedido"><strong>Observação do pedido</strong><p>{order.notes}</p></div>}
       <div className="ka-pizza-grid">{pizzas.map((pizza, index) => (!visiblePizzaIds || visiblePizzaIds.includes(pizza.id)) && <PizzaCard key={pizza.id} pizza={pizza} index={index} selected={pizza.id === selectedPizzaId} onSelect={() => onSelectPizza(pizza.id)} />)}</div>
     </div>
-    <footer className="ka-order-footer"><OrderTimeline order={order} /><CompleteAssemblyButton order={order} onCompleteAssembly={onCompleteAssembly} readOnly={readOnly} /></footer>
+    <footer className="ka-order-footer"><OrderTimeline order={order} />{readOnly ? <div className="ka-assembly-progress" role="status"><strong>{assemblyCompletedPizzas(order)} de {pizzas.length} pizzas enviadas ao forno</strong><span>Avanço automático por pizza</span></div> : <CompleteAssemblyButton order={order} onCompleteAssembly={onCompleteAssembly} readOnly={false} />}</footer>
   </section>;
 }

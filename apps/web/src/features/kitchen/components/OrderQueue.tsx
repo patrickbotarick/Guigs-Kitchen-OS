@@ -4,6 +4,7 @@ import type { AssemblyOrder, OrderChannel, QueueSortDirection } from '../types';
 import { AssemblyIcon } from './AssemblyIcons';
 import { useAssembly } from '../useAssembly';
 import { useState } from 'react';
+import { OperationalNavigation } from '../../../components/OperationalNavigation';
 
 export const channelLabels: Record<OrderChannel, string> = { IFOOD: 'iFood', WHATSAPP: 'WhatsApp', PICKUP: 'Retirada', COUNTER: 'Balcão', OTHER: 'Outro' };
 export function ChannelBadge({ channel }: { channel: OrderChannel }) {
@@ -32,13 +33,13 @@ export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, o
   return <aside className="ka-queue" aria-labelledby="ka-queue-title">
     <div className="ka-queue-heading"><h2 id="ka-queue-title">Fila de Pedidos</h2><button className="ka-sort" type="button" aria-label={`Ordenar fila: ${sortDirection === 'ASC' ? 'mais antigo primeiro' : 'mais recente primeiro'}`} aria-pressed={sortDirection === 'DESC'} onClick={onToggleSort}><AssemblyIcon name="sort" /></button></div>
     <p className="ka-sort-label">{sortDirection === 'ASC' ? 'Mais antigo primeiro' : 'Mais recente primeiro'}</p>
-    {mode === 'API' && <Link to="/kitchen/finishing">Forno e Finalização</Link>}
+    <OperationalNavigation />
     {mode === 'API' && <span className={`ka-connection ka-connection-${connection.toLowerCase()}`} role="status" aria-label="Conexão Assembly">{({ ONLINE: 'Online', RECONNECTING: 'Reconectando', OFFLINE: 'Offline' })[connection]}</span>}
     {operatorSession && <div className="ka-operator-identity"><span aria-label="Identidade operacional">{operatorSession.operatorName} • {operatorSession.workstationName} • {connection === 'OFFLINE' ? 'Sem conexão' : ({ ONLINE: 'Online', STALE: 'Presença atrasada', OFFLINE: 'Offline' })[operatorSession.presenceStatus]}</span>
       <button type="button" aria-label="Receber novas pizzas neste tablet" aria-pressed={operatorSession.available} disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => void setAvailability(!operatorSession.available)}>{operatorSession.available ? 'Recebendo neste tablet' : 'Suspenso neste tablet'}</button>
       <button type="button" disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => { if (inProgress) setConfirmSwitch(true); else void endSession(); }}>Trocar montador</button>
       <button type="button" disabled={commandBusy || pendingCommand || sessionBusy} onClick={() => { if (inProgress) setConfirmSwitch(true); else void endSession(); }}>Encerrar turno</button>
-      {operatorSession.role === 'SUPERVISOR' && <Link to="/kitchen/assembly/recovery">Recuperar pizzas</Link>}
+      {operatorSession.role === 'SUPERVISOR' && <Link to="/kitchen/assembly/recovery">Recuperação</Link>}
       {confirmSwitch && <div role="alert"><p>Há pizzas sob sua responsabilidade. Pause e libere as pizzas, ou solicite recuperação ao supervisor, antes de trocar montador ou encerrar turno.</p><button type="button" onClick={() => setConfirmSwitch(false)}>Continuar montando</button></div>}
       {sessionError && <p role="alert">{sessionError}</p>}
     </div>}
@@ -47,6 +48,6 @@ export function OrderQueue({ orders, selectedId, now, onSelect, sortDirection, o
     {commandNotice && <p role="status">{commandNotice}</p>}
     {pendingCommand && <button type="button" disabled={commandBusy} onClick={retryCommand}>{commandBusy ? 'Confirmando comando...' : 'Confirmar comando novamente'}</button>}
     <div className="ka-queue-scroll">{orders.length ? orders.map(order => <OrderQueueCard key={order.id} order={order} selected={order.id === selectedId} now={now} onSelect={() => onSelect(order.id)} />) : <p className="ka-muted">Nenhum pedido na fila.</p>}</div>
-    <footer className="ka-queue-footer"><Link to="/">Balcão</Link><span>{mode === 'API' ? 'Persistidos · montagem' : 'DEV · Simulador local'}</span>{mode === 'API' && <button type="button" disabled={refreshing || commandBusy} onClick={reload}>{refreshing ? 'Atualizando...' : 'Atualizar'}</button>}{mode === 'DEMO' && <Link to="/kitchen/assembly">Pedidos persistidos</Link>}{import.meta.env.DEV && <Link to="/kitchen/assembly/dev" aria-label="Abrir simulador de desenvolvimento">Dev</Link>}</footer>
+    <footer className="ka-queue-footer"><Link to="/counter/dispatch">Despacho</Link><span>{mode === 'API' ? 'Persistidos · montagem' : 'DEV · Simulador local'}</span>{mode === 'API' && <button type="button" disabled={refreshing || commandBusy} onClick={reload}>{refreshing ? 'Atualizando...' : 'Atualizar'}</button>}{mode === 'DEMO' && <Link to="/kitchen/assembly">Pedidos persistidos</Link>}</footer>
   </aside>;
 }

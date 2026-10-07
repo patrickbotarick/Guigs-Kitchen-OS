@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import request from 'supertest';
-import type { CreateStructuredOrderInput, KitchenNotification, Order, PizzaCommandInput } from '@guigs/shared';
+import type { CreateStructuredOrderInput, KitchenNotification, Order, PizzaCommandInput, StationKind } from '@guigs/shared';
 import { StructuredOrderService } from './structured-orders.js';
 import { hashOperatorPin, OperatorSessionService } from './operator-sessions.js';
 import { PizzaCommandService } from './pizza-commands.js';
@@ -21,8 +21,8 @@ function payload(count = 1): CreateStructuredOrderInput {
   return { clientRequestId: randomUUID(), customerName: 'Distribuição fixture', customerPhone: '', notes: '', channel: 'COUNTER', fulfillmentType: 'PICKUP', extras: [],
     pizzas: Array.from({ length: count }, () => ({ size: 'GRANDE', composition: 'WHOLE', firstHalf: { flavorId: 'calabresa', modifiers: [] }, crustId: 'tradicional', notes: null })) };
 }
-async function login(index: number) {
-  const deviceKey = randomUUID(), result = await sessions.signIn({ pin: String(6100 + index), workstationDeviceKey: deviceKey }, randomUUID());
+async function login(index: number, station?: StationKind) {
+  const deviceKey = randomUUID(), result = await sessions.signIn({ pin: String(6100 + index), workstationDeviceKey: deviceKey, station }, randomUUID());
   await sessions.heartbeat({ token: result.token, deviceKey });
   return { auth: { token: result.token, deviceKey }, session: result.session, headers: { Authorization: `Bearer ${result.token}`, 'X-Workstation-Device-Key': deviceKey } };
 }
@@ -42,13 +42,47 @@ beforeEach(async () => {
   await prisma.$transaction([
     prisma.pizzaCommandReceipt.deleteMany(), prisma.structuredOrderCreation.deleteMany(), prisma.orderStatusHistory.deleteMany(), prisma.pizzaProductionHistory.deleteMany(),
     prisma.pizzaIngredientModifier.deleteMany(), prisma.pizzaHalf.deleteMany(), prisma.extraItem.deleteMany(), prisma.pizzaItem.deleteMany(), prisma.order.deleteMany(),
-    prisma.operatorSession.updateMany({ data: { active: false, endedAt: new Date() } }), prisma.operator.updateMany({ data: { active: true } }), prisma.workstation.updateMany({ data: { active: true } }),
+    prisma.operatorSession.updateMany({ data: { active: false, endedAt: new Date() } }), prisma.operator.updateMany({ data: { active: true, role: 'ASSEMBLER' } }), prisma.workstation.updateMany({ data: { active: true } }),
   ]);
   notifications.length = 0; publish.mockClear();
 });
 afterAll(async () => { await prisma.$disconnect(); for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(`${path}${suffix}`, { force: true }); });
 
 describe('distribuição automática por pizza', () => {
+  it('cinco contextos: somente as duas estações de Montagem recebem, sem depender do nome', async () => {
+    await prisma.operator.update({ where: { id: operatorIds[4] }, data: { role: 'SUPERVISOR' } });
+    const actors: Awaited<ReturnType<typeof login>>[] = [];
+    const stations: StationKind[] = ['ASSEMBLY', 'ASSEMBLY', 'PRODUCTION', 'COUNTER', 'SUPERVISION'];
+    for (let index = 0; index < stations.length; index++) actors.push(await login(index, stations[index]));
+    expect(actors.map(actor => actor.session.available)).toEqual([true, true, false, false, false]);
+    // A textual name cannot turn a production/counter station into an assembler.
+    await prisma.operator.update({ where: { id: operatorIds[2] }, data: { name: 'Montador na estação de forno fixture' } });
+    const { order } = await creation.create(payload(10));
+    const counts = await load();
+    expect(counts).toHaveLength(2); expect(counts.map(group => group._count._all)).toEqual([5, 5]);
+    expect(order.items.every(item => item.kind === 'PIZZA' && actors.slice(0, 2).some(actor => actor.session.operatorId === item.assignment?.operatorId))).toBe(true);
+    for (const actor of actors.slice(2)) expect((await sessions.setAvailability(actor.auth, true)).available).toBe(false);
+  });
+  it('persiste suspensão na workstation após novo login e mantém contexto não elegível sem recriar sessão', async () => {
+    const actor = await login(0, 'ASSEMBLY');
+    await sessions.setAvailability(actor.auth, false);
+    const next = await sessions.signIn({ pin: '6100', workstationDeviceKey: actor.auth.deviceKey, station: 'ASSEMBLY' }, randomUUID());
+    expect(next.session.available).toBe(false); expect(next.session.workstationId).toBe(actor.session.workstationId);
+    const auth = { ...actor.auth, token: next.token };
+    await sessions.setAvailability(auth, true);
+    await sessions.heartbeat(auth);
+    const { order } = await creation.create(payload(1));
+    const before = await prisma.pizzaItem.findUniqueOrThrow({ where: { id: order.items[0].id } });
+    expect(before.assignedOperatorId).toBe(actor.session.operatorId);
+    const moved = await sessions.setAvailability(auth, undefined, 'COUNTER');
+    expect(moved.sessionId).toBe(next.session.sessionId); expect(moved.available).toBe(false);
+    expect(await sessions.heartbeat(auth)).toMatchObject({ available: false, presenceStatus: 'ONLINE' });
+    const workstation = await prisma.workstation.findUniqueOrThrow({ where: { id: next.session.workstationId } });
+    expect(workstation).toMatchObject({ stationKind: 'COUNTER', receivingEnabled: false });
+    const subsequent = await sessions.signIn({ pin: '6100', workstationDeviceKey: auth.deviceKey }, randomUUID());
+    expect(subsequent.session.available).toBe(false);
+    expect(await prisma.pizzaItem.findUniqueOrThrow({ where: { id: before.id } })).toEqual(before);
+  });
   it.each([1, 2, 5])('balanceia 30 pizzas entre %i operadores sem quantidade fixa', async count => {
     const actors = []; for (let index = 0; index < count; index++) actors.push(await login(index));
     const { order } = await creation.create(payload(30)); expect(order.status).toBe('WAITING_PRODUCTION'); expect(order.version).toBe(1);

@@ -17,7 +17,7 @@ export class SupervisorRecoveryService {
   async targets(credentials: SessionCredentials) {
     await this.authorize(credentials);
     const now = new Date();
-    const sessions = await this.prisma.operatorSession.findMany({ where: { active: true, endedAt: null, expiresAt: { gt: now }, available: true, operator: { active: true }, workstation: { active: true } }, include: { operator: true, workstation: true }, orderBy: { startedAt: 'desc' } });
+    const sessions = await this.prisma.operatorSession.findMany({ where: { active: true, endedAt: null, expiresAt: { gt: now }, available: true, operator: { active: true, role: 'ASSEMBLER' }, workstation: { active: true, stationKind: 'ASSEMBLY', receivingEnabled: true } }, include: { operator: true, workstation: true }, orderBy: { startedAt: 'desc' } });
     const seen = new Set<string>();
     return sessions.filter(session => {
       if (sessionPresence(session, now, this.sessions.policy) !== 'ONLINE' || seen.has(session.operatorId)) return false;
@@ -45,7 +45,7 @@ export class SupervisorRecoveryService {
       if (pausing ? pizza.state !== 'ASSEMBLING' : pizza.state === 'ASSEMBLING') throw new PizzaCommandConflictError('Pause explicitamente a montagem antes de recuperar ou reatribuir.');
       const now = new Date();
       const target = input.targetSessionId ? await tx.operatorSession.findUnique({ where: { id: input.targetSessionId }, include: { operator: true, workstation: true } }) : null;
-      if (input.command === 'SUPERVISOR_REASSIGN' && (!target || !target.available || sessionPresence(target, now, this.sessions.policy) !== 'ONLINE' || target.operatorId === pizza.assignedOperatorId)) throw new PizzaCommandConflictError('Destino deve ser outro operador disponível, com sessão e presença válidas.');
+      if (input.command === 'SUPERVISOR_REASSIGN' && (!target || !target.available || target.operator.role !== 'ASSEMBLER' || target.workstation.stationKind !== 'ASSEMBLY' || !target.workstation.receivingEnabled || sessionPresence(target, now, this.sessions.policy) !== 'ONLINE' || target.operatorId === pizza.assignedOperatorId)) throw new PizzaCommandConflictError('Destino deve ser outro operador disponível na Montagem, com sessão e presença válidas.');
       const toState = pausing ? 'ASSEMBLY_PAUSED' : pizza.state;
       const changed = await tx.pizzaItem.updateMany({ where: { id: pizzaId, orderId, state: input.expectedState, version: input.expectedVersion, assignedOperatorId: pizza.assignedOperatorId }, data: {
         state: toState, version: { increment: 1 }, ...(pausing ? { pausedAt: now } : {}),

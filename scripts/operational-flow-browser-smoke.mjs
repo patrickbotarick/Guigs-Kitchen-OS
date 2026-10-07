@@ -33,8 +33,10 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
         await page.getByRole('button', { name: 'Receber novas pizzas neste tablet', exact: true }).click();
         await page.getByText('Suspenso neste tablet', { exact: true }).waitFor();
       } else {
-        await page.getByRole('button', { name: /Suspender recebimento/ }).click();
-        await page.getByRole('button', { name: /Retomar recebimento/ }).waitFor();
+        await page.getByText('Recebimento de montagem exclusivo à estação Montagem', { exact: true }).waitFor();
+        const key = await page.evaluate(() => localStorage.getItem('guigs-workstation-device-key'));
+        const session = await prisma.operatorSession.findFirstOrThrow({ where: { workstation: { deviceKey: key }, active: true } });
+        assert.equal(session.available, false);
       }
     }
     const board = await contexts[1].newPage(); await board.goto(`${webOrigin}/kitchen`);
@@ -150,6 +152,8 @@ await withIsolatedApi(3358, async ({ apiOrigin, prisma, restart }) => {
     }
     await station.goto(`${webOrigin}/kitchen/oven`); await station.waitForURL(`${webOrigin}/kitchen/finishing`);
     await counter.goto(`${webOrigin}/kitchen/dispatch`); await counter.waitForURL(`${webOrigin}/counter/dispatch`);
+    await station.getByLabel('Identidade operacional', { exact: true }).waitFor();
+    await station.getByLabel('Conexão Forno e Finalização', { exact: true }).filter({ hasText: /^Online$/ }).waitFor();
     await contexts[1].setOffline(true); await station.getByText('Offline', { exact: true }).waitFor(); assert.equal(await station.getByRole('button', { name: 'Retirar do forno' }).isDisabled(), true);
     await contexts[1].setOffline(false); await station.getByText('Online', { exact: true }).waitFor(); await restart(); await station.reload(); await station.locator(`[data-pizza-id="${pickup.items[0].id}"]`).waitFor();
     // Lose the HTTP response after commit: sessionStorage + same ID recover after refresh.

@@ -78,7 +78,7 @@ await withIsolatedApi(3347, async ({ prisma, apiOrigin }) => {
     assert.match(await assembly.locator('.ka-counts').first().innerText(), /02 Extras/);
     assert.match(await assembly.locator('.ka-detail').innerText(), /Observação persistida/);
     assert.equal(await assembly.getByRole('button', { name: 'Iniciar montagem', exact: true }).isDisabled(), false);
-    assert.equal(await assembly.getByRole('button', { name: 'Concluir montagem', exact: true }).isDisabled(), true);
+    assert.equal(await assembly.getByRole('button', { name: 'Concluir montagem', exact: true }).count(), 0);
     await assembly.locator('.ka-pizza-card').nth(1).click();
     assert.match(await assembly.locator('.ka-detail').innerText(), /Removido:\s+cebola/);
     await assembly.getByRole('button', { name: /2ª metade — Mussarela/ }).click();

@@ -12,7 +12,7 @@ export async function assignNewOrder(tx: Prisma.TransactionClient, orderId: stri
   const sessions = await tx.operatorSession.findMany({ where: {
     active: true, endedAt: null, expiresAt: { gt: now }, available: true,
     lastSeenAt: { gt: new Date(now.getTime() - presencePolicy().staleMs), lte: now },
-    operator: { active: true }, workstation: { active: true },
+    operator: { active: true, role: 'ASSEMBLER' }, workstation: { active: true, stationKind: 'ASSEMBLY', receivingEnabled: true },
   }, orderBy: [{ startedAt: 'desc' }, { id: 'asc' }] });
   // One candidate per operator: multiple tablets do not multiply their chance of selection.
   const representatives = new Map<string, typeof sessions[number]>();

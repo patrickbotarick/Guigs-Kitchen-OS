@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { operatorLoginSchema, operatorPinSchema, operatorSessionSchema, type OperatorLoginInput } from '@guigs/shared';
+import { operatorLoginSchema, operatorPinSchema, operatorSessionSchema, type OperatorLoginInput, type StationKind } from '@guigs/shared';
 import { presencePolicy, sessionPresence, type PresencePolicy } from './presence-policy.js';
 
 export class OperationalAuthError extends Error {
@@ -92,16 +92,18 @@ export class OperatorSessionService {
       const session = await transactionRetry(this.prisma, async tx => {
         const operator = await tx.operator.findUniqueOrThrow({ where: { id: operatorId } });
         if (!operator.active || operator.pinHash !== matched!.pinHash) throw new PinLoginError();
-        const workstation = await tx.workstation.upsert({ where: { deviceKey }, create: { deviceKey, name: `Tablet Cozinha ${deviceKey.slice(0, 8)}` }, update: { updatedAt: new Date() } });
+        let workstation = await tx.workstation.upsert({ where: { deviceKey }, create: { deviceKey, name: `Tablet Cozinha ${deviceKey.slice(0, 8)}`, stationKind: input.station ?? 'ASSEMBLY', receivingEnabled: (input.station ?? 'ASSEMBLY') === 'ASSEMBLY' }, update: { updatedAt: new Date() } });
         if (!workstation.active) throw new PinLoginError();
+        if (input.station && workstation.stationKind !== input.station) workstation = await tx.workstation.update({ where: { id: workstation.id }, data: { stationKind: input.station, receivingEnabled: input.station === 'ASSEMBLY' } });
+        const available = workstation.stationKind === 'ASSEMBLY' && workstation.receivingEnabled && operator.role === 'ASSEMBLER';
         const activeClaims = await tx.pizzaItem.count({ where: { assignedWorkstationId: workstation.id, assignedOperatorId: { not: operatorId }, state: { in: ['WAITING_ASSEMBLY', 'ASSEMBLING', 'ASSEMBLY_PAUSED'] } } });
         if (activeClaims) throw new SessionResponsibilityConflictError();
         const now = new Date();
         const previous = await tx.operatorSession.findMany({ where: { workstationId: workstation.id, active: true } });
         await tx.operatorSession.updateMany({ where: { workstationId: workstation.id, active: true }, data: { active: false, endedAt: now, presenceStatus: 'OFFLINE' } });
         for (const session of previous) await tx.operatorSessionEvent.create({ data: { sessionId: session.id, eventType: 'SESSION_REPLACED', changedAt: now, presenceStatus: 'OFFLINE', available: session.available } });
-        const created = await tx.operatorSession.create({ data: { operatorId, workstationId: workstation.id, tokenHash: tokenHash(token), startedAt: now, expiresAt: new Date(now.getTime() + this.lifetimeMs) }, include: { operator: true, workstation: true } });
-        await tx.operatorSessionEvent.create({ data: { sessionId: created.id, eventType: 'SESSION_STARTED', changedAt: now, presenceStatus: 'OFFLINE', available: true } });
+        const created = await tx.operatorSession.create({ data: { operatorId, workstationId: workstation.id, available, tokenHash: tokenHash(token), startedAt: now, expiresAt: new Date(now.getTime() + this.lifetimeMs) }, include: { operator: true, workstation: true } });
+        await tx.operatorSessionEvent.create({ data: { sessionId: created.id, eventType: 'SESSION_STARTED', changedAt: now, presenceStatus: 'OFFLINE', available } });
         return this.view(created);
       });
       this.attempts.delete(`device:${deviceKey}`);
@@ -132,9 +134,16 @@ export class OperatorSessionService {
         presenceStatus: session ? sessionPresence(session, now, this.policy) : 'OFFLINE' as const, lastSeenAt: session?.lastSeenAt?.toISOString() ?? null };
     });
   }
-  async setAvailability(credentials: SessionCredentials, available: boolean) {
+  async setAvailability(credentials: SessionCredentials, requested?: boolean, station?: StationKind) {
     const result = await transactionRetry(this.prisma, async tx => {
       const actor = await this.validate(credentials, tx);
+      const workstation = await tx.workstation.findUniqueOrThrow({ where: { id: actor.workstationId } });
+      const kind = station ?? workstation.stationKind;
+      const receivingEnabled = kind === 'ASSEMBLY' && (requested ?? (kind === workstation.stationKind ? workstation.receivingEnabled : true));
+      const available = receivingEnabled && actor.view.role === 'ASSEMBLER';
+      await tx.workstation.update({ where: { id: workstation.id }, data: { stationKind: kind, receivingEnabled } });
+      // One workstation has one receiving preference, including older active sessions.
+      await tx.operatorSession.updateMany({ where: { workstationId: workstation.id, active: true, id: { not: actor.sessionId } }, data: { available: false } });
       const session = await tx.operatorSession.update({ where: { id: actor.sessionId }, data: { available }, include: { operator: true, workstation: true } });
       if (actor.view.available !== available) await tx.operatorSessionEvent.create({ data: { sessionId: actor.sessionId, eventType: 'AVAILABILITY_CHANGED', changedAt: this.now(), presenceStatus: sessionPresence(session, this.now(), this.policy), available } });
       return this.view(session);

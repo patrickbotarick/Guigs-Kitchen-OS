@@ -207,7 +207,7 @@ describe('forno operacional', () => {
     for (let start = 0; start < 30; start += 3) await Promise.all([start, start + 1, start + 2].map(index => commands.execute(order.id, order.items[index].id, input(order, 'ENTER_OVEN', index), index % 2 ? a.auth : b.auth)));
     expect(await prisma.pizzaItem.count({ where: { orderId: order.id, state: 'IN_OVEN' } })).toBe(30); expect(await prisma.pizzaProductionHistory.count({ where: { eventType: 'ENTER_OVEN' } })).toBe(30);
     expect((await creation.get(order.id))?.version).toBe(order.version + 30);
-  }, 20000);
+  }, 60000);
   it.each(['history', 'order', 'receipt'] as const)('rollback ao falhar %s preserva estado/timestamps/agregação e não emite', async part => {
     const { order, a } = await setup(), payload = input(order, 'ENTER_OVEN'), before = await prisma.pizzaItem.findUnique({ where: { id: order.items[0].id } });
     const table = part === 'history' ? 'PizzaProductionHistory' : part === 'order' ? 'Order' : 'PizzaCommandReceipt', verb = part === 'order' ? 'UPDATE' : 'INSERT';

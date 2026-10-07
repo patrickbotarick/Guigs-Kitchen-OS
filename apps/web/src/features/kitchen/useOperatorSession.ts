@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { OperationalSession } from '@guigs/shared';
-import { endOperatorSession, invalidateSession, loginOperator, onInvalidSession, OperatorApiError, sessionCredentials, sessionStorageKey, heartbeatOperatorSession, setOperatorAvailability, type SessionCredentials } from './operatorSession';
+import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
+import type { OperationalSession, StationKind } from '@guigs/shared';
+import { endOperatorSession, invalidateSession, loginOperator, onInvalidSession, OperatorApiError, sessionCredentials, sessionStorageKey, heartbeatOperatorSession, setOperatorAvailability, setOperatorStation, type SessionCredentials } from './operatorSession';
 
-export function useOperatorSession() {
+export function useManagedOperatorSession(station: StationKind) {
+  const stationRef = useRef(station); stationRef.current = station;
+  const appliedStation = useRef('');
   const [session, setSession] = useState<OperationalSession | null>(null), [credentials, setCredentials] = useState<SessionCredentials | null>(null);
   const [checking, setChecking] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const epoch = useRef(0), alive = useRef(true), operationBusy = useRef(false);
@@ -14,6 +16,8 @@ export function useOperatorSession() {
     try {
       const auth = sessionCredentials();
       if (!auth) { if (alive.current) { setSession(null); setCredentials(null); } return; }
+      const context = `${auth.token}:${stationRef.current}`;
+      if (document.visibilityState === 'visible' && appliedStation.current !== context) { await setOperatorStation(auth, stationRef.current); appliedStation.current = context; }
       const current = await heartbeatOperatorSession(auth);
       if (alive.current && epoch.current === version) { setSession(current); setCredentials(auth); setError(''); }
     } catch (cause) {
@@ -24,14 +28,17 @@ export function useOperatorSession() {
     } finally { reading.current = false; if (alive.current && epoch.current === version) setChecking(false); else if (alive.current) void refresh(); }
   }, []);
   useEffect(() => {
-    alive.current = true; void refresh();
+    alive.current = true; setChecking(true); void refresh();
     const clear = () => { epoch.current++; setSession(null); setCredentials(null); setChecking(false); setError('Sessão encerrada. Identifique-se novamente.'); };
     const removeInvalid = onInvalidSession(clear);
     const storage = (event: StorageEvent) => { if (event.key === sessionStorageKey) { setSession(null); setCredentials(null); setChecking(true); void refresh(); } };
-    const focus = () => { void refresh(); };
-    window.addEventListener('storage', storage); window.addEventListener('focus', focus); window.addEventListener('online', focus); window.addEventListener('guigs-operators-changed', focus);
-    return () => { alive.current = false; epoch.current++; removeInvalid(); window.removeEventListener('storage', storage); window.removeEventListener('focus', focus); window.removeEventListener('online', focus); window.removeEventListener('guigs-operators-changed', focus); };
-  }, [refresh]);
+    const focus = () => { appliedStation.current = ''; setChecking(true); void refresh(); };
+    const changed = () => { void refresh(); };
+    const visibility = () => { if (document.visibilityState === 'visible') focus(); };
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('storage', storage); window.addEventListener('focus', focus); window.addEventListener('online', focus); window.addEventListener('guigs-operators-changed', changed);
+    return () => { alive.current = false; epoch.current++; removeInvalid(); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage); window.removeEventListener('focus', focus); window.removeEventListener('online', focus); window.removeEventListener('guigs-operators-changed', changed); };
+  }, [refresh, station]);
   useEffect(() => {
     if (!session) return;
     const timer = setInterval(() => void refresh(), session.heartbeatIntervalMs);
@@ -40,7 +47,7 @@ export function useOperatorSession() {
   async function login(pin: string) {
     if (operationBusy.current) return; operationBusy.current = true; const version = ++epoch.current; setBusy(true); setError('');
     try {
-      await loginOperator(pin);
+      await loginOperator(pin, stationRef.current);
       const auth = sessionCredentials();
       if (!auth) throw new Error('Credenciais indisponíveis.');
       const current = await heartbeatOperatorSession(auth);
@@ -59,11 +66,18 @@ export function useOperatorSession() {
   async function setAvailability(available: boolean) {
     if (operationBusy.current || !credentials) return;
     operationBusy.current = true; epoch.current++; setBusy(true); setError('');
-    try { const current = await setOperatorAvailability(credentials, available); if (alive.current) setSession(current); }
+    try { const current = await setOperatorAvailability(credentials, available, stationRef.current); if (alive.current) setSession(current); }
     catch (cause) {
       if (cause instanceof OperatorApiError && cause.status === 401) invalidateSession(credentials.token);
       else if (alive.current) setError(cause instanceof OperatorApiError ? cause.message : 'Não foi possível alterar a disponibilidade. Tente novamente.');
     } finally { operationBusy.current = false; if (alive.current) setBusy(false); }
   }
-  return { session, credentials, checking, busy, error, login, end, refresh, setAvailability };
+  return { session, credentials, checking, busy: busy || checking, error, login, end, refresh, setAvailability };
+}
+
+export const OperatorSessionContext = createContext<ReturnType<typeof useManagedOperatorSession> | null>(null);
+export function useOperatorSession() {
+  const context = useContext(OperatorSessionContext);
+  if (!context) throw new Error('Sessão operacional precisa do provider.');
+  return context;
 }
